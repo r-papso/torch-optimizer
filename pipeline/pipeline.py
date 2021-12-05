@@ -1,23 +1,21 @@
-import torch.nn as nn
-from context import Context
+from torch import nn
+from torch.utils.data import Dataset
 
-from ..pruning.pruner import Pruner
-from ..training.trainer import Trainer
+from ..pruning.abstract import Pruner
+from ..training.abstract import Trainer
 
 
 class Pipeline:
-    def __init__(self, model: nn.Module, pruner: Pruner, trainer: Trainer) -> None:
+    def __init__(self, pruner: Pruner, trainer: Trainer) -> None:
         self.__pruner = pruner
         self.__trainer = trainer
-        self.__context = Context()
-        self.__context.model = model
 
     def run(self):
-        self.__trainer.before_pruning_train(self.__context)
+        self.__trainer.before_pruning_train()
 
         for _ in range(self.__pruner.n_steps()):
-            self.__pruner.prune(self.__context)
-            self.__trainer.during_pruning_train(self.__context)
+            self.__pruner.prune()
+            self.__trainer.during_pruning_train()
 
-        self.__trainer.after_pruning_train(self.__context)
+        self.__trainer.after_pruning_train()
 
