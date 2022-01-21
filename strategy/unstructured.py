@@ -2,28 +2,26 @@ from typing import List
 import numpy as np
 from torch import nn
 
-from structs.layer_mask import LayerMask
+from scoring.abstract import Scoring
 from strategy.abstract import Strategy
 
 
 class UnstructuredStrategy(Strategy):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, scoring: Scoring) -> None:
+        super().__init__(scoring)
 
-    def get_mask(self, layer: nn.Module, fraction: float) -> LayerMask:
+    def get_mask(self, layer: nn.Module, fraction: float) -> np.ndarray:
         score = self._scoring.get_score(layer)
         sorted_idxs = np.argsort(score, axis=None)
 
-        n_zeros = int(sorted_idxs.size * fraction)
+        p = int(sorted_idxs.size * fraction)
         mask = np.full(score.shape, True)
-        np.put(mask, sorted_idxs[0:n_zeros], False)
-
-        # TODO: return mask or implement layer masking here
+        np.put(mask, sorted_idxs[0:p], False)
 
         return mask
 
-    def get_masks(self, layers: List[nn.Module], fraction: float) -> List[LayerMask]:
-        scores = self._scoring.get_scores(layers)
+    def get_masks(self, layers: List[nn.Module], fraction: float) -> List[np.ndarray]:
+        scores = [self._scoring.get_score(layer) for layer in layers]
 
         # Get indexes in flattened and concatenated array that divide individual
         # arrays within the list
@@ -34,10 +32,10 @@ class UnstructuredStrategy(Strategy):
         concatenated = np.concatenate([score.flatten() for score in scores])
         sorted_idxs = np.argsort(concatenated, axis=None)
 
-        n_zeros = int(sorted_idxs.size * fraction)
+        p = int(sorted_idxs.size * fraction)
         masks = [np.full(score.shape, True) for score in scores]
 
-        for idx in sorted_idxs[0:n_zeros]:
+        for idx in sorted_idxs[0:p]:
             array_div_idx = max([div_idx for div_idx in array_div_idxs if div_idx <= idx])
             list_idx = array_div_idxs.index(array_div_idx)
             array_idx = idx - array_div_idx

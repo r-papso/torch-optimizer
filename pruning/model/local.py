@@ -14,10 +14,6 @@ class LocalPruner(Pruner):
     ) -> None:
         super().__init__(context, strategy, n_steps, remove_channels)
 
-    @abstractmethod
-    def get_fraction(self, layer: nn.Module) -> float:
-        pass
-
     def get_masks(self, layers: List[nn.Module]) -> List[LayerMask]:
         # TODO: implement
         pass

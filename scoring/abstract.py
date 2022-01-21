@@ -1,4 +1,3 @@
-from typing import List
 import numpy as np
 
 from abc import ABC, abstractmethod
@@ -11,8 +10,4 @@ class Scoring(ABC):
 
     @abstractmethod
     def get_score(self, layer: nn.Module) -> np.ndarray:
-        pass
-
-    @abstractmethod
-    def get_scores(self, layers: List[nn.Module]) -> List[np.ndarray]:
         pass

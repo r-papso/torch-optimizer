@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import List
+import numpy as np
 from torch import nn
 
 from scoring.abstract import Scoring
-from structs.layer_mask import LayerMask
 
 
 class Strategy(ABC):
@@ -13,9 +13,9 @@ class Strategy(ABC):
         self._scoring = scoring
 
     @abstractmethod
-    def get_mask(self, layer: nn.Module, fraction: float) -> LayerMask:
+    def get_mask(self, layer: nn.Module, fraction: float) -> np.ndarray:
         pass
 
     @abstractmethod
-    def get_masks(self, layers: List[nn.Module], fraction: float) -> List[LayerMask]:
+    def get_masks(self, layers: List[nn.Module], fraction: float) -> List[np.ndarray]:
         pass
