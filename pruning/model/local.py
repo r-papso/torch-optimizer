@@ -4,7 +4,7 @@ from torch import nn
 
 from structs.layer_mask import LayerMask
 from pipeline.pipeline_context import PipelineContext
-from pruning.abstract import Pruner
+from pruning.model.abstract import Pruner
 from strategy.abstract import Strategy
 
 

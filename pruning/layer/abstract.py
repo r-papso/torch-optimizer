@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Tuple
+from typing import List, Tuple
 import numpy as np
 
 from torch import nn
@@ -10,13 +10,9 @@ class LayerPruner(ABC):
         super().__init__()
 
     @abstractmethod
-    def prune_by_mask(self, layer: nn.Module, mask: np.ndarray) -> Tuple[int]:
+    def prune_by_mask(self, layer: nn.Module, mask: np.ndarray) -> None:
         pass
 
     @abstractmethod
-    def prune_by_input(self, layer: nn.Module, input_shape: Tuple[int]) -> Tuple[int]:
-        pass
-
-    @abstractmethod
-    def validate_input(self, layer: nn.Module, input_shape: Tuple[int]) -> bool:
+    def prune_by_indicies(self, layer: nn.Module, indicies: List[int]) -> None:
         pass

@@ -1,5 +1,5 @@
 from pipeline.pipeline_context import PipelineContext
-from pruning.local import LocalPruner
+from pruning.model.local import LocalPruner
 from strategy.abstract import Strategy
 
 
