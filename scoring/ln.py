@@ -1,5 +1,4 @@
-import numpy as np
-
+import torch
 from torch import nn
 
 from scoring.abstract import Scoring
@@ -11,5 +10,5 @@ class LnScoring(Scoring):
 
         self.__n = n
 
-    def get_score(self, layer: nn.Module) -> np.ndarray:
-        return np.abs(np.power(layer.weight.detach().numpy(), self.__n))
+    def get_score(self, layer: nn.Module) -> torch.Tensor:
+        return torch.abs(torch.float_power(layer.weight, self.__n))

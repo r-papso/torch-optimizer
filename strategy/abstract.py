@@ -145,11 +145,11 @@ class StructuredPruning(Pruning):
         # Sum along all but first axis to get aggregated score for
         # individual filters/neurons
         for score in scores:
-            axes_to_sum = tuple(range(1, len(score.shape)))
-            score_sum = np.sum(score, axis=axes_to_sum)
+            dims_to_sum = tuple(range(1, len(score.shape)))
+            score_sum = score.sum(dim=dims_to_sum)
             # Divide score sum by its size to make it comparable across
             # whole model in case of global pruning
-            score_sum /= np.array([score[i].size for i in range(score.shape[0])])
+            score_sum /= torch.Tensor([score[i].size().numel() for i in range(score.shape[0])])
             scores_sum.append(score_sum)
 
         return scores_sum

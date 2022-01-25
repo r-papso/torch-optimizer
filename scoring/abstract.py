@@ -1,4 +1,4 @@
-import numpy as np
+import torch
 
 from abc import ABC, abstractmethod
 from torch import nn
@@ -9,5 +9,5 @@ class Scoring(ABC):
         super().__init__()
 
     @abstractmethod
-    def get_score(self, layer: nn.Module) -> np.ndarray:
+    def get_score(self, layer: nn.Module) -> torch.Tensor:
         pass

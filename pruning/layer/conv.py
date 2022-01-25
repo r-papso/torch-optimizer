@@ -1,7 +1,7 @@
 from pruning.layer.abstract import StandardPruner
 
 
-class LinearPruner(StandardPruner):
+class ConvPruner(StandardPruner):
     def __init__(self) -> None:
         super().__init__()
 
@@ -9,7 +9,7 @@ class LinearPruner(StandardPruner):
         return 1
 
     def _in_attr_name(self) -> str:
-        return "in_features"
+        return "in_channels"
 
     def _out_attr_name(self) -> str:
-        return "out_features"
+        return "out_channels"
