@@ -1,7 +1,8 @@
 from typing import List
-from torch import nn
+
 import torch
 from pruning.layer.abstract import LayerPruner
+from torch import nn
 
 
 class BatchNorm2dPruner(LayerPruner):
@@ -16,12 +17,11 @@ class BatchNorm2dPruner(LayerPruner):
 
         layer.zero_grad()
         with torch.no_grad():
-            mask = torch.ones_like(layer.weight, dtype=torch.bool)
-            mask[channels] = False
+            slices = (channels,)
             param_names = ["running_mean", "running_var", "weight", "bias"]
 
             for name in param_names:
-                self._prune_parameter(layer, name, mask)
+                self._prune_parameter(layer, name, slices)
 
         layer.num_features -= len(channels)
         return True

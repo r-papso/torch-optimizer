@@ -9,5 +9,5 @@ class Scoring(ABC):
         super().__init__()
 
     @abstractmethod
-    def get_score(self, layer: nn.Module) -> torch.Tensor:
+    def get_score(self, layer: nn.Module, name: str) -> torch.Tensor:
         pass

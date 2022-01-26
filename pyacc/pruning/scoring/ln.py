@@ -10,5 +10,6 @@ class LnScoring(Scoring):
 
         self.__n = n
 
-    def get_score(self, layer: nn.Module) -> torch.Tensor:
-        return torch.abs(torch.float_power(layer.weight, self.__n))
+    def get_score(self, layer: nn.Module, name: str) -> torch.Tensor:
+        param = getattr(layer, name)
+        return torch.abs(torch.float_power(param, self.__n))
