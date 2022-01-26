@@ -9,6 +9,9 @@ class StandardPruner(LayerPruner):
     def __init__(self) -> None:
         super().__init__()
 
+    def prunable_by_mask(self, layer: nn.Module) -> bool:
+        return len(self.__zero_channels(layer)) > 0
+
     def prune_by_mask(self, layer: nn.Module) -> Iterable[int]:
         self._before_mask_pruning(layer)
         layer.zero_grad()
@@ -47,6 +50,12 @@ class StandardPruner(LayerPruner):
 
     def _after_channel_pruning(self, layer: nn.Module, channels: Iterable[int]) -> None:
         pass
+
+    def __zero_channels(self, layer: nn.Module) -> Iterable[int]:
+        dims_to_sum = tuple(range(1, len(layer.weight_mask.shape)))
+        mask_sum = layer.weight_mask.sum(dim=dims_to_sum)
+        zero_idxs = (mask_sum == 0).nonzero().squeeze().tolist()
+        return zero_idxs
 
     def __non_zero_channels(self, layer: nn.Module) -> Iterable[int]:
         dims_to_sum = tuple(range(1, len(layer.weight_mask.shape)))

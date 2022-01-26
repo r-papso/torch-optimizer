@@ -17,11 +17,7 @@ class LayerPrunerFactory:
     @classmethod
     def get_pruner(cls, module_type: type) -> LayerPruner:
         pruner = cls._pruners.get(module_type, None)
-
-        if pruner is None:
-            raise ValueError(f"{LayerPrunerFactory} -> Unsupported module type: {module_type}.")
-
-        return pruner()
+        return pruner() if pruner is not None else None
 
     @classmethod
     def register_pruner(cls, module_type: type, pruner_type: type) -> None:

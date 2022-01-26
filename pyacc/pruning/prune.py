@@ -4,7 +4,7 @@ import torch
 from typing import Iterable, Tuple
 from torch import nn
 
-from scoring.abstract import Scoring
+from pyacc.pruning.scoring.abstract import Scoring
 
 
 class PruningHook:

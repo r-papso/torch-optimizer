@@ -9,6 +9,9 @@ class BatchNorm2dPruner(LayerPruner):
     def __init__(self) -> None:
         super().__init__()
 
+    def prunable_by_mask(self, layer: nn.Module) -> bool:
+        return False
+
     def prune_by_mask(self, layer: nn.Module) -> List[int]:
         raise ValueError(f"{BatchNorm2dPruner} -> Pruning by mask is not supported.")
 

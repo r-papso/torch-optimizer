@@ -10,6 +10,10 @@ class LayerPruner(ABC):
         super().__init__()
 
     @abstractmethod
+    def prunable_by_mask(self, layer: nn.Module) -> bool:
+        pass
+
+    @abstractmethod
     def prune_by_mask(self, layer: nn.Module) -> Iterable[int]:
         pass
 
