@@ -1,7 +1,7 @@
-from pruning.layer.abstract import LayerPruner
-from pruning.layer.batchnorm2d import BatchNorm2dPruner
-from pruning.layer.conv import ConvPruner
-from pruning.layer.linear import LinearPruner
+from pyacc.pruning.layer.abstract import LayerPruner
+from pyacc.pruning.layer.batchnorm2d import BatchNorm2dPruner
+from pyacc.pruning.layer.conv import ConvPruner
+from pyacc.pruning.layer.linear import LinearPruner
 from torch import nn
 
 

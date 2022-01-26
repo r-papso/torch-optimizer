@@ -1,7 +1,7 @@
 from typing import Iterable
 
 import torch
-from pruning.layer.abstract import LayerPruner
+from pyacc.pruning.layer.abstract import LayerPruner
 from torch import nn
 
 
@@ -19,11 +19,15 @@ class StandardPruner(LayerPruner):
         with torch.no_grad():
             non_zero = self.__non_zero_channels(layer)
 
-            w_slcs = tuple([non_zero if i == 0 else slice(None) for i in range(layer.weight.ndim)])
-            b_slcs = tuple([non_zero if i == 0 else slice(None) for i in range(layer.bias.ndim)])
+            w_slices = tuple(
+                [tuple(non_zero) if i == 0 else slice(None) for i in range(layer.weight.ndim)]
+            )
+            b_slices = tuple(
+                [tuple(non_zero) if i == 0 else slice(None) for i in range(layer.bias.ndim)]
+            )
 
-            self._prune_parameter(layer, "weight", w_slcs)
-            self._prune_parameter(layer, "bias", b_slcs)
+            self._prune_parameter(layer, "weight", w_slices)
+            self._prune_parameter(layer, "bias", b_slices)
 
         self._after_mask_pruning(layer, non_zero)
         return non_zero
@@ -33,7 +37,10 @@ class StandardPruner(LayerPruner):
         layer.zero_grad()
 
         with torch.no_grad():
-            slices = tuple([channels if i == 1 else slice(None) for i in range(layer.weight.ndim)])
+            slices = tuple(
+                [tuple(channels) if i == 1 else slice(None) for i in range(layer.weight.ndim)]
+            )
+
             self._prune_parameter(layer, "weight", slices)
 
         self._after_channel_pruning(layer, channels)
@@ -60,5 +67,5 @@ class StandardPruner(LayerPruner):
     def __non_zero_channels(self, layer: nn.Module) -> Iterable[int]:
         dims_to_sum = tuple(range(1, len(layer.weight_mask.shape)))
         mask_sum = layer.weight_mask.sum(dim=dims_to_sum)
-        zero_idxs = (mask_sum > 0).nonzero().squeeze().tolist()
-        return zero_idxs
+        non_zero_idxs = (mask_sum > 0).nonzero().squeeze().tolist()
+        return non_zero_idxs

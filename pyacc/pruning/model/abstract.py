@@ -13,20 +13,16 @@ class Strategy(Enum):
 
 
 class ModelPruner(ABC):
-    def __init__(self, prune_types: Tuple[type], exclude_modules: Iterable[str]) -> None:
+    def __init__(self, prune_modules: Iterable[str]) -> None:
         super().__init__()
 
-        self._types = prune_types
-        self._exclude = exclude_modules
+        self._modules = prune_modules
 
     @abstractmethod
     def prune(
         self, model: nn.Module, scoring: Scoring, strategy: Strategy, shrink_model: bool
     ) -> None:
         pass
-
-    def _prunable(self, name: str, module: nn.Module) -> bool:
-        return isinstance(module, self._types) and name not in self._exclude
 
     def _shrink_model(self, model: nn.Module, module_name: str) -> None:
         layer = model.get_submodule(module_name)
@@ -45,5 +41,5 @@ class ModelPruner(ABC):
             pruner = LayerPrunerFactory.get_pruner(type(layer))
 
             if pruner is not None:
-                if not pruner.prune_by_channels(channels):
+                if not pruner.prune_by_channels(layer, channels):
                     break

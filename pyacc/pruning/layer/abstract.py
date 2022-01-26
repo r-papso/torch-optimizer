@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Iterable
 
-from pruning.prune import apply_mask
+from pyacc.pruning.prune import apply_mask
 from torch import nn
 
 

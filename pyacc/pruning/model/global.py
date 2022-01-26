@@ -7,16 +7,16 @@ from torch import nn
 
 class GlobalPruner(ModelPruner):
     def __init__(
-        self, prune_types: Tuple[type], exclude_modules: Iterable[str], factor: float
+        self, prune_modules: Iterable[str], factor: float
     ) -> None:
-        super().__init__(prune_types, exclude_modules)
+        super().__init__(prune_modules)
 
         self.__factor = factor
 
     def prune(
         self, model: nn.Module, scoring: Scoring, strategy: Strategy, shrink_model: bool
     ) -> None:
-        layers = [module for name, module in model.named_modules() if self._prunable(name, module)]
+        layers = [module for name, module in model.named_modules() if name in self._modules]
 
         if strategy == Strategy.Structured:
             params = [layer + ("weight", 0) for layer in layers]

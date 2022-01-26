@@ -1,7 +1,7 @@
 from typing import List
 
 import torch
-from pruning.layer.abstract import LayerPruner
+from pyacc.pruning.layer.abstract import LayerPruner
 from torch import nn
 
 
@@ -26,5 +26,5 @@ class BatchNorm2dPruner(LayerPruner):
             for name in param_names:
                 self._prune_parameter(layer, name, slices)
 
-        layer.num_features -= len(channels)
+        layer.num_features = len(channels)
         return True

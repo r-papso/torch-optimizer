@@ -8,10 +8,8 @@ from torch import nn
 
 
 class LocalPruner(ModelPruner):
-    def __init__(
-        self, prune_types: Tuple[type], exclude_modules: Iterable[str], policy: Policy
-    ) -> None:
-        super().__init__(prune_types, exclude_modules)
+    def __init__(self, prune_modules: Iterable[str], policy: Policy) -> None:
+        super().__init__(prune_modules)
 
         self.__policy = policy
 
@@ -19,7 +17,7 @@ class LocalPruner(ModelPruner):
         self, model: nn.Module, scoring: Scoring, strategy: Strategy, shrink_model: bool
     ) -> None:
         for name, module in model.named_modules():
-            if self._prunable(name, module):
+            if name in self._modules:
                 factor = self.__policy.get_fraction(module)
 
                 if strategy == Strategy.Structured:

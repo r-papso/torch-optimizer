@@ -1,5 +1,5 @@
 from torch import nn
-from policy.abstract import Policy
+from pyacc.pruning.policy.abstract import Policy
 
 
 class ConstantPolicy(Policy):
