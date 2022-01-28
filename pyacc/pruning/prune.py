@@ -55,7 +55,9 @@ def remove(layer: nn.Module, name: str) -> None:
     del layer._parameters[f"{name}_orig"]
 
     # Remove forward hook
-    del_key = next(k for k, hook in layer._forward_pre_hooks if isinstance(hook, PruningHook))
+    del_key = next(
+        k for k, hook in layer._forward_pre_hooks.items() if isinstance(hook, PruningHook)
+    )
     del layer._forward_pre_hooks[del_key]
 
     # Set layer's weight

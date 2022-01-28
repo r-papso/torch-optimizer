@@ -67,8 +67,8 @@ class ReducerBase(Reducer):
         module.zero_grad()
 
         with torch.no_grad():
-            channel_dim = self._channel_dim()
-            slices = utils.create_slices(module, "weight", input[channel_dim], channel_dim)
+            dim = self._input_dependent_dim()
+            slices = utils.create_slices(module, "weight", input[dim], dim)
             utils.reduce_parameter(module, "weight", slices)
 
         self._after_input_reduce(module, input)
@@ -87,7 +87,7 @@ class ReducerBase(Reducer):
         pass
 
     @abstractmethod
-    def _channel_dim(self) -> int:
+    def _input_dependent_dim(self) -> int:
         pass
 
     def _before_mask_reduce(self, module: nn.Module) -> None:
@@ -122,7 +122,7 @@ class Conv2dReducer(ReducerBase):
     ) -> Tuple[Iterable[bool], ...]:
         return None
 
-    def _channel_dim(self) -> int:
+    def _input_dependent_dim(self) -> int:
         return 1
 
     def _before_mask_reduce(self, module: nn.Module) -> None:
@@ -159,7 +159,7 @@ class LinearReducer(ReducerBase):
     ) -> Tuple[Iterable[bool], ...]:
         return None
 
-    def _channel_dim(self) -> int:
+    def _input_dependent_dim(self) -> int:
         return -1
 
     def _before_mask_reduce(self, module: nn.Module) -> None:
@@ -289,4 +289,7 @@ class IdentityReducer(Reducer):
     def reduce_by_input(
         self, module: nn.Module, input: Tuple[Iterable[bool], ...]
     ) -> Tuple[Iterable[bool], ...]:
+        for i, dim_mask in enumerate([d for d in input if d is not None]):
+            utils.set_out_shape(module, i, sum(dim_mask))
+
         return input

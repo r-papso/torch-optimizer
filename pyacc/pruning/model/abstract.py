@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Iterable, Tuple
-from pyacc.pruning.layer.factory import LayerPrunerFactory
+from pyacc.pruning.layer.factory import LayerPrunerFactory, ReducerFactory
 
 from pyacc.pruning.scoring.abstract import Scoring
 from torch import nn
@@ -26,20 +26,20 @@ class ModelPruner(ABC):
 
     def _shrink_model(self, model: nn.Module, module_name: str) -> None:
         layer = model.get_submodule(module_name)
-        pruner = LayerPrunerFactory.get_pruner(type(layer))
+        reducer = ReducerFactory.get(type(layer))
+        out = reducer.reduce_by_mask(layer)
 
-        if pruner is None or not pruner.prunable_by_mask(layer):
+        if out is None or all([mask is None or all(mask) for mask in out]):
             return
 
-        channels = pruner.prune_by_mask(layer)
         names = [name for name, _ in model.named_modules()]
         idx = names.index(module_name)
         names = names[idx + 1 :]
 
         for name in names:
             layer = model.get_submodule(name)
-            pruner = LayerPrunerFactory.get_pruner(type(layer))
+            reducer = ReducerFactory.get(type(layer))
+            out = reducer.reduce_by_input(layer, out)
 
-            if pruner is not None:
-                if not pruner.prune_by_channels(layer, channels):
-                    break
+            if out is None or all([mask is None or all(mask) for mask in out]):
+                break
