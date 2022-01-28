@@ -10,14 +10,14 @@ class StandardPruner(LayerPruner):
         super().__init__()
 
     def prunable_by_mask(self, layer: nn.Module) -> bool:
-        return len(self.__zero_channels(layer)) > 0
+        return len(self._zero_channels(layer)) > 0
 
     def prune_by_mask(self, layer: nn.Module) -> Iterable[int]:
         self._before_mask_pruning(layer)
         layer.zero_grad()
 
         with torch.no_grad():
-            non_zero = self.__non_zero_channels(layer)
+            non_zero = self._non_zero_channels(layer)
 
             w_slices = tuple(
                 [tuple(non_zero) if i == 0 else slice(None) for i in range(layer.weight.ndim)]
@@ -58,13 +58,19 @@ class StandardPruner(LayerPruner):
     def _after_channel_pruning(self, layer: nn.Module, channels: Iterable[int]) -> None:
         pass
 
-    def __zero_channels(self, layer: nn.Module) -> Iterable[int]:
+    def _zero_channels(self, layer: nn.Module) -> Iterable[int]:
+        if not hasattr(layer, "weight_mask"):
+            return []
+
         dims_to_sum = tuple(range(1, len(layer.weight_mask.shape)))
         mask_sum = layer.weight_mask.sum(dim=dims_to_sum)
         zero_idxs = (mask_sum == 0).nonzero().squeeze().tolist()
         return zero_idxs
 
-    def __non_zero_channels(self, layer: nn.Module) -> Iterable[int]:
+    def _non_zero_channels(self, layer: nn.Module) -> Iterable[int]:
+        if not hasattr(layer, "weight_mask"):
+            return list(range(layer.weight.shape[0]))
+
         dims_to_sum = tuple(range(1, len(layer.weight_mask.shape)))
         mask_sum = layer.weight_mask.sum(dim=dims_to_sum)
         non_zero_idxs = (mask_sum > 0).nonzero().squeeze().tolist()
