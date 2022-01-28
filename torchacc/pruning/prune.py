@@ -4,10 +4,10 @@ import torch
 from typing import Iterable, Tuple
 from torch import nn
 
-from pyacc.pruning.scoring.abstract import Scoring
+from .scoring import Scoring
 
 
-class PruningHook:
+class _PruningHook:
     def __init__(self, name: str) -> None:
         self.__name = name
 
@@ -56,7 +56,7 @@ def remove(layer: nn.Module, name: str) -> None:
 
     # Remove forward hook
     del_key = next(
-        k for k, hook in layer._forward_pre_hooks.items() if isinstance(hook, PruningHook)
+        k for k, hook in layer._forward_pre_hooks.items() if isinstance(hook, _PruningHook)
     )
     del layer._forward_pre_hooks[del_key]
 
@@ -150,5 +150,5 @@ def _set_mask(layer: nn.Module, name: str, mask: torch.Tensor) -> None:
     setattr(layer, name, apply_mask(layer, name))
 
     # Register forward hook if not registered, yet
-    if not any([isinstance(hook, PruningHook) for hook in layer._forward_pre_hooks.values()]):
-        layer.register_forward_pre_hook(PruningHook(name))
+    if not any([isinstance(hook, _PruningHook) for hook in layer._forward_pre_hooks.values()]):
+        layer.register_forward_pre_hook(_PruningHook(name))

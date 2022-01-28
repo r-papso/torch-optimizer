@@ -1,7 +1,7 @@
 from typing import Iterable, Tuple
 from torch import nn
 
-from pyacc.pruning.prune import apply_mask
+from ..prune import apply_mask
 
 
 def channel_mask(module: nn.Module, name: str) -> Iterable[bool]:

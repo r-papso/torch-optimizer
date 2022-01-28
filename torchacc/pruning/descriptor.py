@@ -7,18 +7,18 @@ def set_dims(model: nn.Module, input: Tuple[int, ...]) -> None:
     x = torch.rand((1,) + input)
 
     for _, module in model.named_modules():
-        module.register_forward_hook(DescriptorHook())
+        module.register_forward_hook(_DescriptorHook())
 
     y = model.forward(x)
 
     for _, module in model.named_modules():
         del_key = next(
-            k for k, hook in module._forward_hooks.items() if isinstance(hook, DescriptorHook)
+            k for k, hook in module._forward_hooks.items() if isinstance(hook, _DescriptorHook)
         )
         del module._forward_hooks[del_key]
 
 
-class DescriptorHook:
+class _DescriptorHook:
     def __init__(self) -> None:
         pass
 

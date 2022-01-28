@@ -1,28 +1,11 @@
-from abc import ABC, abstractmethod
 import itertools
+from abc import ABC, abstractmethod
 from typing import Iterable, Tuple
 
 import torch
-
-import pyacc.pruning.layer.utils as utils
 from torch import nn
 
-
-class LayerPruner(ABC):
-    def __init__(self) -> None:
-        super().__init__()
-
-    @abstractmethod
-    def prunable_by_mask(self, layer: nn.Module) -> bool:
-        pass
-
-    @abstractmethod
-    def prune_by_mask(self, layer: nn.Module) -> Iterable[int]:
-        pass
-
-    @abstractmethod
-    def prune_by_channels(self, layer: nn.Module, channels: Iterable[int]) -> bool:
-        pass
+from . import utils
 
 
 class Reducer(ABC):
