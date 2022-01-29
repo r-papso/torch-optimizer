@@ -65,3 +65,20 @@ def set_out_shape(module: nn.Module, changed_dim: int, new_shape: int) -> None:
     if (out_shape := module._buffers.get("out_shape")) is not None:
         out_shape[changed_dim] = new_shape
         module._buffers["out_shape"] = out_shape
+
+
+def module_ndim(module: nn.Module) -> int:
+    if isinstance(
+        module, (nn.Conv1d, nn.MaxPool1d, nn.AvgPool1d, nn.AdaptiveMaxPool1d, nn.AdaptiveAvgPool1d)
+    ):
+        return 3
+    elif isinstance(
+        module, (nn.Conv2d, nn.MaxPool2d, nn.AvgPool2d, nn.AdaptiveMaxPool2d, nn.AdaptiveAvgPool2d)
+    ):
+        return 4
+    elif isinstance(
+        module, (nn.Conv3d, nn.MaxPool3d, nn.AvgPool3d, nn.AdaptiveMaxPool3d, nn.AdaptiveAvgPool3d)
+    ):
+        return 5
+    else:
+        return -1

@@ -49,9 +49,7 @@ class ModelPruner(ABC):
 
 
 class GlobalPruner(ModelPruner):
-    def __init__(
-        self, prune_modules: Iterable[str], factor: float
-    ) -> None:
+    def __init__(self, prune_modules: Iterable[str], factor: float) -> None:
         super().__init__(prune_modules)
 
         self.__factor = factor
@@ -69,9 +67,9 @@ class GlobalPruner(ModelPruner):
             prune.global_unstructured(params, self.__factor, scoring)
         else:
             raise ValueError(f"Invalid strategy: {strategy}")
-        
+
         if shrink_model:
-            [self._shrink_model(model, name for name, _ in model.named_modules())]
+            [self._shrink_model(model, name) for name, _ in model.named_modules()]
 
 
 class LocalPruner(ModelPruner):

@@ -4,20 +4,32 @@ from torch import nn
 
 class ReducerFactory:
     _reducers = {
-        nn.Conv2d: Conv2dReducer,
+        nn.Conv1d: ConvReducer,
+        nn.Conv2d: ConvReducer,
+        nn.Conv3d: ConvReducer,
+        nn.BatchNorm1d: BatchNormReducer,
+        nn.BatchNorm2d: BatchNormReducer,
+        nn.BatchNorm3d: BatchNormReducer,
+        nn.MaxPool1d: PoolReducer,
+        nn.AvgPool1d: PoolReducer,
+        nn.MaxPool2d: PoolReducer,
+        nn.AvgPool2d: PoolReducer,
+        nn.MaxPool3d: PoolReducer,
+        nn.AvgPool3d: PoolReducer,
+        nn.AdaptiveMaxPool1d: AdaptivePoolReducer,
+        nn.AdaptiveAvgPool1d: AdaptivePoolReducer,
+        nn.AdaptiveMaxPool2d: AdaptivePoolReducer,
+        nn.AdaptiveAvgPool2d: AdaptivePoolReducer,
+        nn.AdaptiveMaxPool3d: AdaptivePoolReducer,
+        nn.AdaptiveAvgPool3d: AdaptivePoolReducer,
         nn.Linear: LinearReducer,
-        nn.BatchNorm2d: BatchNorm2dReducer,
         nn.Flatten: FlattenReducer,
-        nn.MaxPool2d: Pool2dReducer,
-        nn.AvgPool2d: Pool2dReducer,
-        nn.AdaptiveMaxPool2d: AdaptivePool2dReducer,
-        nn.AdaptiveAvgPool2d: AdaptivePool2dReducer,
     }
 
     @classmethod
     def get(cls, module_type: type) -> Reducer:
         reducer = cls._reducers.get(module_type, None)
-        return reducer() if reducer is not None else IdentityReducer()
+        return reducer() if reducer is not None else FixedOpReducer()
 
     @classmethod
     def register(cls, module_type: type, reducer_type: type) -> None:
