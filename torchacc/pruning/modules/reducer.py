@@ -29,7 +29,6 @@ class ReducerBase(Reducer):
 
     def reduce(self, module: nn.Module) -> Tuple[Iterable[bool], ...]:
         self._before_reduce(module)
-        module.zero_grad()
 
         with torch.no_grad():
             first_dim_mask = utils.first_dim_mask(module, "weight")
@@ -48,7 +47,6 @@ class ReducerBase(Reducer):
         self, module: nn.Module, reduced_dims: Tuple[Iterable[bool], ...]
     ) -> Tuple[Iterable[bool], ...]:
         self._before_adjust(module, reduced_dims)
-        module.zero_grad()
 
         with torch.no_grad():
             slices = utils.create_mask_slices(module, "weight", reduced_dims[1], 1)
@@ -155,7 +153,6 @@ class BatchNormReducer(Reducer):
     ) -> Tuple[Iterable[bool], ...]:
         assert isinstance(module, self._batchnorm_types), f"Invalid module type: {type(module)}."
 
-        module.zero_grad()
         with torch.no_grad():
             slices = (reduced_dims[1],)
             param_names = ["running_mean", "running_var", "weight", "bias"]

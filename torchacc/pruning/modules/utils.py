@@ -19,6 +19,7 @@ def reduce_parameter(module: nn.Module, name: str, slices: Tuple[slice]) -> None
     param = module._parameters.get(name)
     if param is not None:
         param.data = param.data[slices]
+        param.grad = None
 
     param_mask = module._buffers.get(f"{name}_mask")
     if param_mask is not None:
@@ -27,6 +28,7 @@ def reduce_parameter(module: nn.Module, name: str, slices: Tuple[slice]) -> None
     param_orig = module._parameters.get(f"{name}_orig")
     if param_orig is not None:
         param_orig.data = param_orig.data[slices]
+        param_orig.grad = None
 
     if param_mask is not None and param_orig is not None:
         setattr(module, name, apply_mask(module, name))
