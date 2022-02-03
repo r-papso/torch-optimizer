@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Iterable
+from typing import Iterable, Tuple
 
 from torch import nn
 
+from .descriptor import set_output_dims
 from . import prune
 from .modules.factory import ReducerFactory
 from .policy import Policy
@@ -23,16 +24,21 @@ class ModelPruner(ABC):
 
     @abstractmethod
     def prune(
-        self, model: nn.Module, scoring: Scoring, strategy: Strategy, shrink_model: bool
+        self,
+        model: nn.Module,
+        scoring: Scoring,
+        strategy: Strategy,
+        reduce: bool,
+        input_shape: Tuple[int, ...] = None,
     ) -> None:
         pass
 
-    def _shrink_model(self, model: nn.Module, module_name: str) -> None:
+    def _reduce_model(self, model: nn.Module, module_name: str) -> None:
         layer = model.get_submodule(module_name)
         reducer = ReducerFactory.get(type(layer))
-        out = reducer.reduce_by_mask(layer)
+        reduced_dims = reducer.reduce(layer)
 
-        if out is None or all([mask is None or all(mask) for mask in out]):
+        if reduced_dims is None or all([mask is None or all(mask) for mask in reduced_dims]):
             return
 
         names = [name for name, _ in model.named_modules()]
@@ -42,9 +48,9 @@ class ModelPruner(ABC):
         for name in names:
             layer = model.get_submodule(name)
             reducer = ReducerFactory.get(type(layer))
-            out = reducer.reduce_by_input(layer, out)
+            reduced_dims = reducer.adjust(layer, reduced_dims)
 
-            if out is None or all([mask is None or all(mask) for mask in out]):
+            if reduced_dims is None or all([mask is None or all(mask) for mask in reduced_dims]):
                 break
 
 
@@ -55,8 +61,16 @@ class GlobalPruner(ModelPruner):
         self.__factor = factor
 
     def prune(
-        self, model: nn.Module, scoring: Scoring, strategy: Strategy, shrink_model: bool
+        self,
+        model: nn.Module,
+        scoring: Scoring,
+        strategy: Strategy,
+        reduce: bool,
+        input_shape: Tuple[int, ...] = None,
     ) -> None:
+        if input_shape is not None:
+            set_output_dims(model, input_shape)
+
         layers = [module for name, module in model.named_modules() if name in self._modules]
 
         if strategy == Strategy.Structured:
@@ -68,8 +82,8 @@ class GlobalPruner(ModelPruner):
         else:
             raise ValueError(f"Invalid strategy: {strategy}")
 
-        if shrink_model:
-            [self._shrink_model(model, name) for name, _ in model.named_modules()]
+        if reduce:
+            [self._reduce_model(model, name) for name, _ in model.named_modules()]
 
 
 class LocalPruner(ModelPruner):
@@ -79,8 +93,16 @@ class LocalPruner(ModelPruner):
         self.__policy = policy
 
     def prune(
-        self, model: nn.Module, scoring: Scoring, strategy: Strategy, shrink_model: bool
+        self,
+        model: nn.Module,
+        scoring: Scoring,
+        strategy: Strategy,
+        reduce: bool,
+        input_shape: Tuple[int, ...] = None,
     ) -> None:
+        if input_shape is not None:
+            set_output_dims(model, input_shape)
+
         for name, module in model.named_modules():
             if name in self._modules:
                 factor = self.__policy.get_fraction(module)
@@ -92,5 +114,5 @@ class LocalPruner(ModelPruner):
                 else:
                     raise ValueError(f"Invalid strategy: {strategy}")
 
-                if shrink_model:
-                    self._shrink_model(model, name)
+                if reduce:
+                    self._reduce_model(model, name)

@@ -3,7 +3,7 @@ from torch import nn
 import torch
 
 
-def set_dims(model: nn.Module, input: Tuple[int, ...]) -> None:
+def set_output_dims(model: nn.Module, input: Tuple[int, ...]) -> None:
     x = torch.rand((1,) + input)
 
     for _, module in model.named_modules():
