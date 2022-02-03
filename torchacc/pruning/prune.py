@@ -15,21 +15,21 @@ class _PruningHook:
         setattr(module, self.__name, apply_mask(module, self.__name))
 
 
-def local_unstructured(layer: nn.Module, name: str, factor: float, scoring: Scoring) -> None:
-    dim = getattr(layer, name).dim() - 1
-    _pruning([(layer, name, dim)], factor, scoring)
+def local_unstructured(module: nn.Module, name: str, factor: float, scoring: Scoring) -> None:
+    dim = getattr(module, name).dim() - 1
+    _pruning([(module, name, dim)], factor, scoring)
 
 
 def local_structured(
-    layer: nn.Module, name: str, factor: float, scoring: Scoring, dim: int
+    module: nn.Module, name: str, factor: float, scoring: Scoring, dim: int
 ) -> None:
-    _pruning([(layer, name, dim)], factor, scoring)
+    _pruning([(module, name, dim)], factor, scoring)
 
 
 def global_unstructured(
     params: Iterable[Tuple[nn.Module, str]], factor: float, scoring: Scoring
 ) -> None:
-    dims = [getattr(layer, name).dim() - 1 for layer, name in params]
+    dims = [getattr(module, name).dim() - 1 for module, name in params]
     params = [param + (dim) for param, dim in zip(params, dims)]
     _pruning(params, factor, scoring)
 
@@ -40,34 +40,61 @@ def global_structured(
     _pruning(params, factor, scoring)
 
 
-def apply_mask(layer: nn.Module, name: str) -> torch.Tensor:
-    mask = getattr(layer, f"{name}_mask")
-    orig = getattr(layer, f"{name}_orig")
+def is_pruned(module: nn.Module) -> bool:
+    return any([isinstance(hook, _PruningHook) for hook in module._forward_pre_hooks.values()])
+
+
+def apply_mask(module: nn.Module, name: str) -> torch.Tensor:
+    mask = getattr(module, f"{name}_mask")
+    orig = getattr(module, f"{name}_orig")
     pruned = mask * orig
     return pruned
 
 
-def remove(layer: nn.Module, name: str) -> None:
-    weight = apply_mask(layer, name)
+def remove(module: nn.Module, name: str) -> None:
+    if not is_pruned(module):
+        return
 
-    # Remove mask and orig from layer
-    del layer._buffers[f"{name}_mask"]
-    del layer._parameters[f"{name}_orig"]
+    weight = apply_mask(module, name)
+
+    # Remove mask and orig from module
+    del module._buffers[f"{name}_mask"]
+    del module._parameters[f"{name}_orig"]
 
     # Remove forward hook
     del_key = next(
-        k for k, hook in layer._forward_pre_hooks.items() if isinstance(hook, _PruningHook)
+        k for k, hook in module._forward_pre_hooks.items() if isinstance(hook, _PruningHook)
     )
-    del layer._forward_pre_hooks[del_key]
+    del module._forward_pre_hooks[del_key]
 
-    # Set layer's weight
-    layer.register_parameter(name, weight)
+    # Set module's weight
+    module.register_parameter(name, weight)
+
+
+def restore(module: nn.Module, name: str) -> None:
+    if not is_pruned(module):
+        return
+
+    weight = module._parameters[f"{name}_orig"]
+
+    # Remove mask and orig from module
+    del module._buffers[f"{name}_mask"]
+    del module._parameters[f"{name}_orig"]
+
+    # Remove forward hook
+    del_key = next(
+        k for k, hook in module._forward_pre_hooks.items() if isinstance(hook, _PruningHook)
+    )
+    del module._forward_pre_hooks[del_key]
+
+    # Set module's weight
+    module.register_parameter(name, weight)
 
 
 def _pruning(params: Iterable[Tuple[nn.Module, str, int]], factor: float, scoring: Scoring) -> None:
     masks = _get_masks(params, factor, scoring)
-    masks = [_combine_masks(layer, name, mask) for (layer, name, _), mask in zip(params, masks)]
-    [_set_mask(layer, name, mask) for (layer, name, _), mask in zip(params, masks)]
+    masks = [_combine_masks(module, name, mask) for (module, name, _), mask in zip(params, masks)]
+    [_set_mask(module, name, mask) for (module, name, _), mask in zip(params, masks)]
 
 
 def _get_masks(
@@ -76,11 +103,11 @@ def _get_masks(
     scores = _get_flattened_scores(params, scoring)
     sorted_scores = sorted(scores, key=lambda tup: tup[0])
 
-    pruned_fractions = [_get_pruned_fraction(layer, name) for layer, name, _ in params]
+    pruned_fractions = [_get_pruned_fraction(module, name) for module, name, _ in params]
     p_actual = sum(pruned_fractions) / len(pruned_fractions)
     p = int((len(sorted_scores) - len(sorted_scores) * p_actual) * factor)
 
-    masks = [torch.ones_like(getattr(layer, name), dtype=torch.bool) for layer, name, _ in params]
+    masks = [torch.ones_like(getattr(module, name), dtype=torch.bool) for module, name, _ in params]
 
     for _, list_idx, slices in sorted_scores[0:p]:
         masks[list_idx][slices] = False
@@ -91,13 +118,13 @@ def _get_masks(
 def _get_flattened_scores(
     params: Iterable[Tuple[nn.Module, str, int]], scoring: Scoring
 ) -> Iterable[Tuple[float, int, slice]]:
-    scores = [scoring.get_score(layer, name) for layer, name, _ in params]
+    scores = [scoring.get_score(module, name) for module, name, _ in params]
     result = []
 
-    for i, ((layer, name, dim), score) in enumerate(zip(params, scores)):
-        layer_param = getattr(layer, name)
+    for i, ((module, name, dim), score) in enumerate(zip(params, scores)):
+        module_param = getattr(module, name)
 
-        if dim + 1 == len(layer_param.shape):
+        if dim + 1 == len(module_param.shape):
             # Unstructured
             score_agg = score
         else:
@@ -122,33 +149,33 @@ def _get_flattened_scores(
     return result
 
 
-def _get_pruned_fraction(layer: nn.Module, name: str) -> float:
-    mask = getattr(layer, name, None)
+def _get_pruned_fraction(module: nn.Module, name: str) -> float:
+    mask = getattr(module, name, None)
     fraction = mask[mask == 0].size().numel() / mask.size().numel() if mask is not None else 0.0
     return fraction
 
 
-def _combine_masks(layer: nn.Module, name: str, mask: torch.Tensor) -> torch.Tensor:
-    actual = getattr(layer, f"{name}_mask", None)
+def _combine_masks(module: nn.Module, name: str, mask: torch.Tensor) -> torch.Tensor:
+    actual = getattr(module, f"{name}_mask", None)
     new_mask = actual * mask if actual is not None else mask
     return new_mask
 
 
-def _set_mask(layer: nn.Module, name: str, mask: torch.Tensor) -> None:
-    # Remove old and add new mask into layer
-    layer._buffers.pop(f"{name}_mask", None)
-    layer.register_buffer(f"{name}_mask", mask)
+def _set_mask(module: nn.Module, name: str, mask: torch.Tensor) -> None:
+    # Remove old and add new mask into module
+    module._buffers.pop(f"{name}_mask", None)
+    module.register_buffer(f"{name}_mask", mask)
 
-    # Register weight_orig into layer's parameters if not registered, yet
-    if f"{name}_orig" not in layer._parameters:
-        orig = layer.get_parameter(name)
-        layer.register_parameter(f"{name}_orig", orig)
-        del layer._parameters[name]
+    # Register weight_orig into module's parameters if not registered, yet
+    if f"{name}_orig" not in module._parameters:
+        orig = module.get_parameter(name)
+        module.register_parameter(f"{name}_orig", orig)
+        del module._parameters[name]
 
-    # As we removed weight from layer's parameters, we need to set it
+    # As we removed weight from module's parameters, we need to set it
     # as attribute manually
-    setattr(layer, name, apply_mask(layer, name))
+    setattr(module, name, apply_mask(module, name))
 
     # Register forward hook if not registered, yet
-    if not any([isinstance(hook, _PruningHook) for hook in layer._forward_pre_hooks.values()]):
-        layer.register_forward_pre_hook(_PruningHook(name))
+    if not any([isinstance(hook, _PruningHook) for hook in module._forward_pre_hooks.values()]):
+        module.register_forward_pre_hook(_PruningHook(name))
