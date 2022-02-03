@@ -16,13 +16,16 @@ def first_dim_mask(module: nn.Module, name: str) -> Iterable[bool]:
 
 
 def reduce_parameter(module: nn.Module, name: str, slices: Tuple[slice]) -> None:
-    if (param := module._parameters.get(name)) is not None:
+    param = module._parameters.get(name)
+    if param is not None:
         param.data = param.data[slices]
 
-    if (param_mask := module._buffers.get(f"{name}_mask")) is not None:
+    param_mask = module._buffers.get(f"{name}_mask")
+    if param_mask is not None:
         module._buffers[f"{name}_mask"] = param_mask[slices]
 
-    if (param_orig := module._parameters.get(f"{name}_orig")) is not None:
+    param_orig = module._parameters.get(f"{name}_orig")
+    if param_orig is not None:
         param_orig.data = param_orig.data[slices]
 
     if param_mask is not None and param_orig is not None:
@@ -37,7 +40,8 @@ def create_mask_slices(
 
 
 def set_out_shape(module: nn.Module, changed_dim: int, new_shape: int) -> None:
-    if (out_shape := module._buffers.get("out_shape")) is not None:
+    out_shape = module._buffers.get("out_shape")
+    if out_shape is not None:
         out_shape[changed_dim] = new_shape
         module._buffers["out_shape"] = out_shape
 

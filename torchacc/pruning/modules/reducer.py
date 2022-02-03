@@ -102,7 +102,8 @@ class ConvReducer(ReducerBase):
         setattr(module, "in_channels", sum(reduced_dims[1]))
 
     def __last_out_dims(self, module: nn.Module) -> Tuple[Iterable[bool], ...]:
-        if (out_shape := getattr(module, "out_shape", None)) is not None:
+        out_shape = getattr(module, "out_shape", None)
+        if out_shape is not None:
             dim_masks = tuple([[True] * out_shape[i] for i in range(2, out_shape.ndim)])
         else:
             dim_masks = tuple([None] * (utils.module_ndim(module) - 2))
@@ -117,7 +118,8 @@ class LinearReducer(ReducerBase):
     def _get_reduced_dims(
         self, module: nn.Module, reduced_dim: Iterable[bool]
     ) -> Tuple[Iterable[bool], ...]:
-        if (out_shape := getattr(module, "out_shape", None)) is not None:
+        out_shape = getattr(module, "out_shape", None)
+        if out_shape is not None:
             out = [[True] * out_dim for out_dim in out_shape.tolist()]
             out[-1] = reduced_dim
         else:
@@ -217,7 +219,8 @@ class PoolReducer(Reducer):
         return (reduced_dims[0], reduced_dims[1]) + out_dims_masks
 
     def __out_dims_masks(self, module: nn.Module) -> Tuple[Iterable[bool], ...]:
-        if (out_shape := getattr(module, "out_shape", None)) is not None:
+        out_shape = getattr(module, "out_shape", None)
+        if out_shape is not None:
             dim_masks = tuple([[True] * out_shape[i] for i in range(2, out_shape.ndim)])
         else:
             dim_masks = tuple([None] * (utils.module_ndim(module) - 2))
@@ -258,7 +261,8 @@ class AdaptivePoolReducer(Reducer):
             else (module.output_size,) * (ndim - 2)
         )
 
-        if (out_shape := getattr(module, "out_shape", None)) is not None:
+        out_shape = getattr(module, "out_shape", None)
+        if out_shape is not None:
             out_buff = tuple([True] * out_shape[i] for i in range(2, ndim))
         else:
             out_buff = tuple([None] * (ndim - 2))
