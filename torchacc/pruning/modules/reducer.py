@@ -43,10 +43,9 @@ class ReducerBase(Reducer):
 
         self._before_reduce_dim(module, name, dim, dim_mask)
 
-        with torch.no_grad():
-            if getattr(module, name, None) is not None:
-                slices = utils.create_mask_slices(module, name, dim_mask, dim)
-                utils.reduce_parameter(module, name, slices)
+        if getattr(module, name, None) is not None:
+            slices = utils.create_mask_slices(module, name, dim_mask, dim)
+            utils.reduce_parameter(module, name, slices)
 
         self._after_reduce_dim(module, name, dim, dim_mask)
         return self._get_output_dim_masks(module, name, dim, dim_mask)
