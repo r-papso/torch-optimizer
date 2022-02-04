@@ -2,7 +2,6 @@ import itertools
 from abc import ABC, abstractmethod
 from typing import Iterable, Tuple
 
-import torch
 from torch import nn
 
 from . import utils
@@ -33,12 +32,14 @@ class ReducerBase(Reducer):
 
     def reduce(self, module: nn.Module) -> Tuple[Iterable[bool], ...]:
         zero_dim_mask = utils.dim_mask(module, "weight", 0)
-        _ = self.reduce_dim(module, "bias", 0, zero_dim_mask)
-        return self.reduce_dim(module, "weight", 0, zero_dim_mask)
+        self.reduce_dim(module, "bias", 0, zero_dim_mask)
+        self.reduce_dim(module, "weight", 0, zero_dim_mask)
 
-    def reduce_dim(
-        self, module: nn.Module, name: str, dim: int, dim_mask: Iterable[bool]
-    ) -> Tuple[Iterable[bool], ...]:
+        out = list(self._get_output_dim_masks(module, zero_dim_mask))
+        out[self._out_dependent_dim()] = zero_dim_mask
+        return tuple(out)
+
+    def reduce_dim(self, module: nn.Module, name: str, dim: int, dim_mask: Iterable[bool]) -> None:
         assert 0 <= dim and dim < getattr(module, name).ndim
 
         self._before_reduce_dim(module, name, dim, dim_mask)
@@ -48,26 +49,21 @@ class ReducerBase(Reducer):
             utils.reduce_parameter(module, name, slices)
 
         self._after_reduce_dim(module, name, dim, dim_mask)
-        return self._get_output_dim_masks(module, name, dim, dim_mask)
 
     def adjust(
         self, module: nn.Module, dim_masks: Tuple[Iterable[bool], ...]
     ) -> Tuple[Iterable[bool], ...]:
         in_dim = self._in_dependent_dim()
-        return self.reduce_dim(module, "weight", in_dim, dim_masks[1])
+        self.reduce_dim(module, "weight", in_dim, dim_masks[1])
+        return self._get_output_dim_masks(module)
 
-    def _get_output_dim_masks(
-        self, module: nn.Module, name: str, dim: int, dim_mask: Iterable[bool]
-    ) -> Tuple[Iterable[bool], ...]:
+    def _get_output_dim_masks(self, module: nn.Module) -> Tuple[Iterable[bool], ...]:
         out_shape = getattr(module, "out_shape", None)
 
         if out_shape is not None:
             out = [[True] * out_dim if out_dim > 0 else None for out_dim in out_shape.tolist()]
         else:
             out = [None] * (utils.module_ndim(module))
-
-        if name == "weight" and dim == 0:
-            out[self._out_dependent_dim()] = dim_mask
 
         return tuple(out)
 
@@ -157,24 +153,20 @@ class BatchNormReducer(Reducer):
     def reduce(self, module: nn.Module) -> Tuple[Iterable[bool], ...]:
         raise ValueError(f"Reduction in BatchNorm is not supported.")
 
-    def reduce_dim(
-        self, module: nn.Module, dim: int, dim_mask: Iterable[bool]
-    ) -> Tuple[Iterable[bool], ...]:
-        raise ValueError(f"Reduction in BatchNorm is not supported.")
+    def reduce_dim(self, module: nn.Module, name: str, dim: int, dim_mask: Iterable[bool]) -> None:
+        assert isinstance(module, self._batchnorm_types), f"Invalid module type: {type(module)}."
+        assert 0 <= dim and dim < getattr(module, name).ndim
+
+        slices = utils.create_mask_slices(module, name, dim_mask, dim)
+        utils.reduce_parameter(module, name, slices)
 
     def adjust(
         self, module: nn.Module, dim_masks: Tuple[Iterable[bool], ...]
     ) -> Tuple[Iterable[bool], ...]:
-        assert isinstance(module, self._batchnorm_types), f"Invalid module type: {type(module)}."
+        for name in ["running_mean", "running_var", "weight", "bias"]:
+            self.reduce_dim(module, name, 0, dim_masks[1])
 
-        with torch.no_grad():
-            slices = (dim_masks[1],)
-            param_names = ["running_mean", "running_var", "weight", "bias"]
-
-            for name in param_names:
-                utils.reduce_parameter(module, name, slices)
-
-        module.num_features = sum(dim_masks[1])
+        setattr(module, "num_features", sum(dim_masks[1]))
         utils.set_out_shape(module, 1, sum(dim_masks[1]))
 
         return dim_masks
