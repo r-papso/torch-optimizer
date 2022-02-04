@@ -17,8 +17,12 @@ class Reducer(ABC):
         pass
 
     @abstractmethod
+    def reduce_dim(self, module: nn.Module, name: str, dim: int, dim_mask: Iterable[bool]) -> None:
+        pass
+
+    @abstractmethod
     def adjust(
-        self, module: nn.Module, reduced_dims: Tuple[Iterable[bool], ...]
+        self, module: nn.Module, dim_masks: Tuple[Iterable[bool], ...]
     ) -> Tuple[Iterable[bool], ...]:
         pass
 
@@ -28,49 +32,78 @@ class ReducerBase(Reducer):
         super().__init__()
 
     def reduce(self, module: nn.Module) -> Tuple[Iterable[bool], ...]:
-        self._before_reduce(module)
+        zero_dim_mask = utils.dim_mask(module, "weight", 0)
+        _ = self.reduce_dim(module, "bias", 0, zero_dim_mask)
+        return self.reduce_dim(module, "weight", 0, zero_dim_mask)
+
+    def reduce_dim(
+        self, module: nn.Module, name: str, dim: int, dim_mask: Iterable[bool]
+    ) -> Tuple[Iterable[bool], ...]:
+        assert 0 <= dim and dim < getattr(module, name).ndim
+
+        self._before_reduce_dim(module, name, dim, dim_mask)
 
         with torch.no_grad():
-            first_dim_mask = utils.first_dim_mask(module, "weight")
+            if getattr(module, name, None) is not None:
+                slices = utils.create_mask_slices(module, name, dim_mask, dim)
+                utils.reduce_parameter(module, name, slices)
 
-            w_slices = utils.create_mask_slices(module, "weight", first_dim_mask, 0)
-            utils.reduce_parameter(module, "weight", w_slices)
-
-            if getattr(module, "bias", None) is not None:
-                b_slices = utils.create_mask_slices(module, "bias", first_dim_mask, 0)
-                utils.reduce_parameter(module, "bias", b_slices)
-
-        self._after_reduce(module, first_dim_mask)
-        return self._get_reduced_dims(module, first_dim_mask)
+        self._after_reduce_dim(module, name, dim, dim_mask)
+        return self._get_output_dim_masks(module, name, dim, dim_mask)
 
     def adjust(
-        self, module: nn.Module, reduced_dims: Tuple[Iterable[bool], ...]
+        self, module: nn.Module, dim_masks: Tuple[Iterable[bool], ...]
     ) -> Tuple[Iterable[bool], ...]:
-        self._before_adjust(module, reduced_dims)
+        in_dim = self._in_dependent_dim()
+        return self.reduce_dim(module, "weight", in_dim, dim_masks[1])
 
-        with torch.no_grad():
-            slices = utils.create_mask_slices(module, "weight", reduced_dims[1], 1)
-            utils.reduce_parameter(module, "weight", slices)
+    def _get_output_dim_masks(
+        self, module: nn.Module, name: str, dim: int, dim_mask: Iterable[bool]
+    ) -> Tuple[Iterable[bool], ...]:
+        out_shape = getattr(module, "out_shape", None)
 
-        self._after_adjust(module, reduced_dims)
-        return None
+        if out_shape is not None:
+            out = [[True] * out_dim if out_dim > 0 else None for out_dim in out_shape.tolist()]
+        else:
+            out = [None] * (utils.module_ndim(module))
+
+        if name == "weight" and dim == 0:
+            out[self._out_dependent_dim()] = dim_mask
+
+        return tuple(out)
+
+    def _before_reduce_dim(
+        self, module: nn.Module, name: str, dim: int, dim_mask: Iterable[bool]
+    ) -> None:
+        assert isinstance(module, self._allowed_types()), f"Invalid module type: {type(module)}."
+
+    def _after_reduce_dim(
+        self, module: nn.Module, name: str, dim: int, dim_mask: Iterable[bool]
+    ) -> None:
+        if name == "weight" and dim == 0:
+            setattr(module, self._out_dim_property_name(), sum(dim_mask))
+            utils.set_out_shape(module, self._out_dependent_dim(), sum(dim_mask))
+        elif name == "weight" and dim == 1:
+            setattr(module, self._in_dim_property_name(), sum(dim_mask))
 
     @abstractmethod
-    def _get_reduced_dims(
-        self, module: nn.Module, reduced_dim: Iterable[bool]
-    ) -> Tuple[Iterable[bool], ...]:
+    def _in_dependent_dim(self) -> int:
         pass
 
-    def _before_reduce(self, module: nn.Module) -> None:
+    @abstractmethod
+    def _out_dependent_dim(self) -> int:
         pass
 
-    def _before_adjust(self, module: nn.Module, reduced_dims: Tuple[Iterable[bool], ...]) -> None:
+    @abstractmethod
+    def _in_dim_property_name(self) -> str:
         pass
 
-    def _after_reduce(self, module: nn.Module, reduced_dim: Iterable[bool]) -> None:
+    @abstractmethod
+    def _out_dim_property_name(self) -> str:
         pass
 
-    def _after_adjust(self, module: nn.Module, reduced_dims: Tuple[Iterable[bool], ...]) -> None:
+    @abstractmethod
+    def _allowed_types(self) -> Tuple[type]:
         pass
 
 
@@ -80,63 +113,40 @@ class ConvReducer(ReducerBase):
     def __init__(self) -> None:
         super().__init__()
 
-    def _get_reduced_dims(
-        self, module: nn.Module, reduced_dim: Iterable[bool]
-    ) -> Tuple[Iterable[bool], ...]:
-        last_dims = self.__last_out_dims(module)
-        return (None, reduced_dim) + last_dims
+    def _in_dependent_dim(self) -> int:
+        return 1
 
-    def _before_reduce(self, module: nn.Module) -> None:
-        assert isinstance(module, self._conv_types), f"Invalid module type: {type(module)}."
+    def _out_dependent_dim(self) -> int:
+        return 1
 
-    def _before_adjust(self, module: nn.Module, reduced_dims: Tuple[Iterable[bool], ...]) -> None:
-        assert isinstance(module, self._conv_types), f"Invalid module type: {type(module)}."
+    def _in_dim_property_name(self) -> str:
+        return "in_channels"
 
-    def _after_reduce(self, module: nn.Module, reduced_dim: Iterable[bool]) -> None:
-        setattr(module, "out_channels", sum(reduced_dim))
-        utils.set_out_shape(module, 1, sum(reduced_dim))
+    def _out_dim_property_name(self) -> str:
+        return "out_channels"
 
-    def _after_adjust(self, module: nn.Module, reduced_dims: Tuple[Iterable[bool], ...]) -> None:
-        setattr(module, "in_channels", sum(reduced_dims[1]))
-
-    def __last_out_dims(self, module: nn.Module) -> Tuple[Iterable[bool], ...]:
-        out_shape = getattr(module, "out_shape", None)
-        if out_shape is not None:
-            dim_masks = tuple([[True] * out_shape[i] for i in range(2, out_shape.ndim)])
-        else:
-            dim_masks = tuple([None] * (utils.module_ndim(module) - 2))
-
-        return dim_masks
+    def _allowed_types(self) -> Tuple[type]:
+        return self._conv_types
 
 
 class LinearReducer(ReducerBase):
     def __init__(self) -> None:
         super().__init__()
 
-    def _get_reduced_dims(
-        self, module: nn.Module, reduced_dim: Iterable[bool]
-    ) -> Tuple[Iterable[bool], ...]:
-        out_shape = getattr(module, "out_shape", None)
-        if out_shape is not None:
-            out = [[True] * out_dim for out_dim in out_shape.tolist()]
-            out[-1] = reduced_dim
-        else:
-            out = [None, reduced_dim]
+    def _in_dependent_dim(self) -> int:
+        return 1
 
-        return tuple(out)
+    def _out_dependent_dim(self) -> int:
+        return -1
 
-    def _before_reduce(self, module: nn.Module) -> None:
-        assert isinstance(module, nn.Linear), f"Invalid module type: {type(module)}."
+    def _in_dim_property_name(self) -> str:
+        return "in_features"
 
-    def _before_adjust(self, module: nn.Module, reduced_dims: Tuple[Iterable[bool], ...]) -> None:
-        assert isinstance(module, nn.Linear), f"Invalid module type: {type(module)}."
+    def _out_dim_property_name(self) -> str:
+        return "out_features"
 
-    def _after_reduce(self, module: nn.Module, reduced_dim: Iterable[bool]) -> None:
-        setattr(module, "out_features", sum(reduced_dim))
-        utils.set_out_shape(module, -1, sum(reduced_dim))
-
-    def _after_adjust(self, module: nn.Module, reduced_dims: Tuple[Iterable[bool], ...]) -> None:
-        setattr(module, "in_features", sum(reduced_dims[-1]))
+    def _allowed_types(self) -> Tuple[type]:
+        return (nn.Linear,)
 
 
 class BatchNormReducer(Reducer):
@@ -146,24 +156,29 @@ class BatchNormReducer(Reducer):
         super().__init__()
 
     def reduce(self, module: nn.Module) -> Tuple[Iterable[bool], ...]:
-        raise ValueError(f"Reduction by mask is not supported.")
+        raise ValueError(f"Reduction in BatchNorm is not supported.")
+
+    def reduce_dim(
+        self, module: nn.Module, dim: int, dim_mask: Iterable[bool]
+    ) -> Tuple[Iterable[bool], ...]:
+        raise ValueError(f"Reduction in BatchNorm is not supported.")
 
     def adjust(
-        self, module: nn.Module, reduced_dims: Tuple[Iterable[bool], ...]
+        self, module: nn.Module, dim_masks: Tuple[Iterable[bool], ...]
     ) -> Tuple[Iterable[bool], ...]:
         assert isinstance(module, self._batchnorm_types), f"Invalid module type: {type(module)}."
 
         with torch.no_grad():
-            slices = (reduced_dims[1],)
+            slices = (dim_masks[1],)
             param_names = ["running_mean", "running_var", "weight", "bias"]
 
             for name in param_names:
                 utils.reduce_parameter(module, name, slices)
 
-        module.num_features = sum(reduced_dims[1])
-        utils.set_out_shape(module, 1, sum(reduced_dims[1]))
+        module.num_features = sum(dim_masks[1])
+        utils.set_out_shape(module, 1, sum(dim_masks[1]))
 
-        return reduced_dims
+        return dim_masks
 
 
 class FlattenReducer(Reducer):
@@ -171,23 +186,28 @@ class FlattenReducer(Reducer):
         super().__init__()
 
     def reduce(self, module: nn.Module) -> Tuple[Iterable[bool], ...]:
-        raise ValueError(f"Reduction by mask is not supported.")
+        raise ValueError(f"Reduction in Flatten is not supported.")
+
+    def reduce_dim(
+        self, module: nn.Module, dim: int, dim_mask: Iterable[bool]
+    ) -> Tuple[Iterable[bool], ...]:
+        raise ValueError(f"Reduction in Flatten is not supported.")
 
     def adjust(
-        self, module: nn.Module, reduced_dims: Tuple[Iterable[bool], ...]
+        self, module: nn.Module, dim_masks: Tuple[Iterable[bool], ...]
     ) -> Tuple[Iterable[bool], ...]:
         assert isinstance(module, nn.Flatten), f"Invalid module type: {type(module)}."
 
         start = module.start_dim
-        end = module.end_dim if module.end_dim != -1 else len(reduced_dims)
-        dim_masks = reduced_dims[start:end]
+        end = module.end_dim if module.end_dim != -1 else len(dim_masks)
+        dim_masks = dim_masks[start:end]
 
         assert all(mask is not None for mask in dim_masks)
 
         flattened = [all(vals) for vals in itertools.product(*dim_masks)]
         utils.set_out_shape(module, start, sum(flattened))
 
-        return reduced_dims[:start] + (flattened,) + reduced_dims[end:]
+        return dim_masks[:start] + (flattened,) + dim_masks[end:]
 
 
 class PoolReducer(Reducer):
@@ -204,16 +224,21 @@ class PoolReducer(Reducer):
         super().__init__()
 
     def reduce(self, module: nn.Module) -> Tuple[Iterable[bool], ...]:
-        raise ValueError(f"Reduction by mask is not supported.")
+        raise ValueError(f"Reduction in Pool is not supported.")
+
+    def reduce_dim(
+        self, module: nn.Module, dim: int, dim_mask: Iterable[bool]
+    ) -> Tuple[Iterable[bool], ...]:
+        raise ValueError(f"Reduction in Pool is not supported.")
 
     def adjust(
-        self, module: nn.Module, reduced_dims: Tuple[Iterable[bool], ...]
+        self, module: nn.Module, dim_masks: Tuple[Iterable[bool], ...]
     ) -> Tuple[Iterable[bool], ...]:
         assert isinstance(module, self._pool_types), f"Invalid module type: {type(module)}."
 
         out_dims_masks = self.__out_dims_masks(module)
-        utils.set_out_shape(module, 1, sum(reduced_dims[1]))
-        return (reduced_dims[0], reduced_dims[1]) + out_dims_masks
+        utils.set_out_shape(module, 1, sum(dim_masks[1]))
+        return (dim_masks[0], dim_masks[1]) + out_dims_masks
 
     def __out_dims_masks(self, module: nn.Module) -> Tuple[Iterable[bool], ...]:
         out_shape = getattr(module, "out_shape", None)
@@ -239,16 +264,21 @@ class AdaptivePoolReducer(Reducer):
         super().__init__()
 
     def reduce(self, module: nn.Module) -> Tuple[Iterable[bool], ...]:
-        raise ValueError(f"Reduction by mask is not supported.")
+        raise ValueError(f"Reduction in AdaptivePool is not supported.")
+
+    def reduce_dim(
+        self, module: nn.Module, dim: int, dim_mask: Iterable[bool]
+    ) -> Tuple[Iterable[bool], ...]:
+        raise ValueError(f"Reduction in AdaptivePool is not supported.")
 
     def adjust(
-        self, module: nn.Module, reduced_dims: Tuple[Iterable[bool], ...]
+        self, module: nn.Module, dim_masks: Tuple[Iterable[bool], ...]
     ) -> Tuple[Iterable[bool], ...]:
         assert isinstance(module, self._adaptivepool_types), f"Invalid module type: {type(module)}."
 
         out_dims_masks = self.__out_dims_masks(module)
-        utils.set_out_shape(module, 1, sum(reduced_dims[1]))
-        return (reduced_dims[0], reduced_dims[1]) + out_dims_masks
+        utils.set_out_shape(module, 1, sum(dim_masks[1]))
+        return (dim_masks[0], dim_masks[1]) + out_dims_masks
 
     def __out_dims_masks(self, module: nn.Module) -> Tuple[Iterable[bool], ...]:
         ndim = utils.module_ndim(module)
@@ -277,12 +307,17 @@ class FixedOpReducer(Reducer):
         super().__init__()
 
     def reduce(self, module: nn.Module) -> Tuple[Iterable[bool], ...]:
-        raise ValueError(f"Reduction by mask is not supported.")
+        raise ValueError(f"Reduction is not supported.")
+
+    def reduce_dim(
+        self, module: nn.Module, dim: int, dim_mask: Iterable[bool]
+    ) -> Tuple[Iterable[bool], ...]:
+        raise ValueError(f"Reduction is not supported.")
 
     def adjust(
-        self, module: nn.Module, reduced_dims: Tuple[Iterable[bool], ...]
+        self, module: nn.Module, dim_masks: Tuple[Iterable[bool], ...]
     ) -> Tuple[Iterable[bool], ...]:
-        for i, dim_mask in enumerate([d for d in reduced_dims if d is not None]):
+        for i, dim_mask in enumerate([d for d in dim_masks if d is not None]):
             utils.set_out_shape(module, i, sum(dim_mask))
 
-        return reduced_dims
+        return dim_masks

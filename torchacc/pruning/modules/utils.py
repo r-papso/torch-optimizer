@@ -4,12 +4,12 @@ from torch import nn
 from ..prune import apply_mask
 
 
-def first_dim_mask(module: nn.Module, name: str) -> Iterable[bool]:
+def dim_mask(module: nn.Module, name: str, dim: int) -> Iterable[bool]:
     if not hasattr(module, f"{name}_mask"):
-        return [True] * module.weight.shape[0]
+        return [True] * module.weight.shape[dim]
 
     ndim = getattr(module, f"{name}_mask").ndim
-    dims_to_sum = tuple(range(1, ndim))
+    dims_to_sum = tuple(range(dim + 1, ndim))
     mask_sum = module.weight_mask.sum(dim=dims_to_sum)
 
     return mask_sum != 0
@@ -49,7 +49,9 @@ def set_out_shape(module: nn.Module, changed_dim: int, new_shape: int) -> None:
 
 
 def module_ndim(module: nn.Module) -> int:
-    if isinstance(
+    if isinstance(module, nn.Linear):
+        return 2
+    elif isinstance(
         module, (nn.Conv1d, nn.MaxPool1d, nn.AvgPool1d, nn.AdaptiveMaxPool1d, nn.AdaptiveAvgPool1d)
     ):
         return 3
