@@ -55,7 +55,7 @@ def remove(module: nn.Module, name: str) -> None:
     if not is_pruned(module):
         return
 
-    weight = apply_mask(module, name)
+    param = apply_mask(module, name)
 
     # Remove mask and orig from module
     del module._buffers[f"{name}_mask"]
@@ -67,15 +67,16 @@ def remove(module: nn.Module, name: str) -> None:
     )
     del module._forward_pre_hooks[del_key]
 
-    # Set module's weight
-    module.register_parameter(name, weight)
+    # Set module's param
+    delattr(module, name)
+    module.register_parameter(name, param)
 
 
 def restore(module: nn.Module, name: str) -> None:
     if not is_pruned(module):
         return
 
-    weight = module._parameters[f"{name}_orig"]
+    param = module._parameters[f"{name}_orig"]
 
     # Remove mask and orig from module
     del module._buffers[f"{name}_mask"]
@@ -87,8 +88,9 @@ def restore(module: nn.Module, name: str) -> None:
     )
     del module._forward_pre_hooks[del_key]
 
-    # Set module's weight
-    module.register_parameter(name, weight)
+    # Set module's param
+    delattr(module, name)
+    module.register_parameter(name, param)
 
 
 def _pruning(params: Iterable[Tuple[nn.Module, str, int]], factor: float, scoring: Scoring) -> None:
