@@ -25,6 +25,6 @@ class LnScoring(Scoring):
         score = torch.abs(torch.float_power(param, self.__n))
 
         if mask is not None:
-            torch.where(mask == False, torch.Tensor([float("inf")]), score)
+            score = torch.where(mask == False, torch.Tensor([float("inf")]), score)
 
         return score
