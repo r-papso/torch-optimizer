@@ -21,4 +21,10 @@ class LnScoring(Scoring):
 
     def get_score(self, layer: nn.Module, name: str) -> torch.Tensor:
         param = getattr(layer, name)
-        return torch.abs(torch.float_power(param, self.__n))
+        mask = getattr(layer, f"{name}_mask", None)
+        score = torch.abs(torch.float_power(param, self.__n))
+
+        if mask is not None:
+            torch.where(mask == False, torch.Tensor([float("inf")]), score)
+
+        return score
