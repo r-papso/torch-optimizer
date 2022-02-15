@@ -8,7 +8,8 @@ import torch.nn as nn
 from deap import base, creator, tools
 from deap.base import Toolbox
 
-from .evaluator import Evaluator
+from .constraint import Constraint
+from .objective import Objective
 from .pruner import Pruner
 
 
@@ -17,7 +18,9 @@ class Optimizer(ABC):
         pass
 
     @abstractmethod
-    def optimize(self, model: nn.Module, pruner: Pruner, evaluator: Evaluator) -> nn.Module:
+    def optimize(
+        self, model: nn.Module, pruner: Pruner, objective: Objective, constraints: Constraint
+    ) -> nn.Module:
         pass
 
     @abstractmethod
@@ -51,7 +54,14 @@ class GAOptimizer(Optimizer):
         self._verbose_freq = verbose_freq
         self._history = None
 
-    def optimize(self, model: nn.Module, pruner: Pruner, evaluator: Evaluator) -> nn.Module:
+    def optimize(
+        self, model: nn.Module, pruner: Pruner, objective: Objective, constraints: Constraint
+    ) -> nn.Module:
+        self.__pruner = pruner
+        self.__obj = objective
+        self.__const = constraints
+        self.__model = model
+
         creator.create("FitnessMax", base.Fitness, weights=(1.0,))
         creator.create("Individual", list, fitness=creator.FitnessMax)
 
@@ -59,14 +69,6 @@ class GAOptimizer(Optimizer):
 
         tb.register("attr_bool", random.randint, 0, 1)
         tb.register("individual", tools.initRepeat, creator.Individual, tb.attr_bool, n=self._indl)
-        tb.register("population", tools.initRepeat, list, tb.individual)
-
-        def evaluate(individual) -> Tuple[float]:
-            model_cpy = deepcopy(model)
-            model_cpy = pruner.prune(model_cpy, individual)
-            return (evaluator.evaluate(model_cpy),)
-
-        tb.register("evaluate", evaluate)
         tb.register("mate", tools.cxTwoPoint)
         tb.register("mutate", tools.mutFlipBit, indpb=self._indp)
         tb.register("select", tools.selTournament, tournsize=self._tourn_size)
@@ -78,8 +80,8 @@ class GAOptimizer(Optimizer):
         stats.register("min", np.min)
         stats.register("max", np.max)
 
-        population = tb.population(n=self._pop_size)
-        self._eval_pop(population, tb)
+        population = self._generate_pop(pop_size=self._pop_size, toolbox=tb)
+        self._evaluate_pop(population)
         best = tools.selBest(population, k=1)
 
         for gen in range(self._n_gen):
@@ -88,10 +90,15 @@ class GAOptimizer(Optimizer):
             while len(new_pop) < len(population):
                 off1, off2 = self._crossover(population, tb)
                 off1, off2 = self._mutation(off1, tb), self._mutation(off2, tb)
-                new_pop += [off1, off2]
+
+                if self._feasible(off1):
+                    new_pop.append(off1)
+
+                if self._feasible(off2):
+                    new_pop.append(off2)
 
             population = new_pop
-            self._eval_pop(population, tb)
+            self._evaluate_pop(population)
             best = self._keep_best(best, population)
 
             record = stats.compile(population)
@@ -108,9 +115,36 @@ class GAOptimizer(Optimizer):
     def history(self) -> Any:
         return self._history
 
-    def _eval_pop(self, population: Iterable[Any], toolbox: Toolbox) -> None:
-        for ind in population:
-            ind.fitness.value = toolbox.evaluate(ind)
+    def _generate_pop(self, pop_size: int, toolbox: Toolbox) -> Iterable[Any]:
+        pop = []
+
+        while len(pop) < pop_size:
+            candidate = toolbox.individual()
+            if self._feasible(candidate):
+                pop.append(candidate)
+
+        return pop
+
+    def _evaluate_pop(self, population: Iterable[Any]) -> None:
+        for individual in population:
+            individual.fitness.values = self._evaluate(individual)
+
+    def _feasible(self, individual: Any) -> bool:
+        model = self._create_model(individual)
+        feasible = self.__const.feasible(model)
+        del model
+        return feasible
+
+    def _evaluate(self, individual: Any) -> Tuple[float, ...]:
+        model = self._create_model(individual)
+        fitness = self.__obj.evaluate(model)
+        del model
+        return fitness
+
+    def _create_model(self, individual: Any) -> nn.Module:
+        model_cpy = deepcopy(self.__model)
+        model_cpy = self.__pruner.prune(model_cpy, individual)
+        return model_cpy
 
     def _crossover(self, population: Iterable[Any], toolbox: Toolbox) -> Tuple[Any]:
         # Parent selection
