@@ -1,6 +1,6 @@
 import warnings
 from abc import ABC, abstractmethod
-from typing import Tuple
+from typing import Iterable, Tuple
 
 import torch
 import torch.nn as nn
@@ -19,14 +19,22 @@ class Objective(ABC):
         pass
 
 
-class Penalty(Objective):
-    def __init__(self, previous: Objective) -> None:
+class ObjectiveContainer(Objective):
+    def __init__(self, objectives: Iterable[Objective]) -> None:
         super().__init__()
 
-        self._prev = previous
+        self._objs = objectives
 
     def evaluate(self, model: nn.Module) -> Tuple[float, ...]:
-        return self._prev.evaluate(model)
+        obj_vals = [obj.evaluate(model) for obj in self._objs]
+        max_len = max(len(obj_val) for obj_val in obj_vals)
+        result = [0.0] * max_len
+
+        for obj_val in obj_vals:
+            for i in range(max_len):
+                result[i] += obj_val[i] if i < len(obj_val) else 0.0
+
+        return tuple(result)
 
 
 class Accuracy(Objective):
@@ -51,16 +59,9 @@ class Accuracy(Objective):
         return (correct / total,)
 
 
-class MacsPenalty(Penalty):
-    def __init__(
-        self,
-        previous: Objective,
-        weight: float,
-        p: float,
-        orig_macs: int,
-        in_shape: Tuple[int, ...],
-    ) -> None:
-        super().__init__(previous)
+class MacsPenalty(Objective):
+    def __init__(self, weight: float, p: float, orig_macs: int, in_shape: Tuple[int, ...],) -> None:
+        super().__init__()
 
         self._weigh = weight
         self._p = p
@@ -68,7 +69,6 @@ class MacsPenalty(Penalty):
         self._input_shape = in_shape
 
     def evaluate(self, model: nn.Module) -> Tuple[float, ...]:
-        obj_vals = super().evaluate(model)
         macs, _ = profile(model, inputs=(torch.randn(self._input_shape),), verbose=False)
         penalty = self._weigh * max(0.0, macs - self._orig_macs * self._p)
-        return tuple([obj_val + penalty for obj_val in obj_vals])
+        return (penalty,)

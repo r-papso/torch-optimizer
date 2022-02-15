@@ -1,14 +1,26 @@
-from __future__ import annotations
+from abc import ABC, abstractmethod
+from typing import Iterable
 
 import torch.nn as nn
 
 
-class Constraint:
-    def __init__(self, previous: Constraint) -> None:
-        self._prev = previous
+class Constraint(ABC):
+    def __init__(self) -> None:
+        super().__init__()
+
+    @abstractmethod
+    def feasible(self, model: nn.Module) -> bool:
+        pass
+
+
+class ConstraintContainer(Constraint):
+    def __init__(self, constraints: Iterable[Constraint]) -> None:
+        super().__init__()
+
+        self._constrs = constraints
 
     def feasible(self, model: nn.Module) -> bool:
-        return self._prev.feasible(model) if self._prev is not None else True
+        return all(constr.feasible(model) for constr in self._constrs)
 
 
 class ChannelConstraint(Constraint):
@@ -16,9 +28,6 @@ class ChannelConstraint(Constraint):
         super().__init__(previous)
 
     def feasible(self, model: nn.Module) -> bool:
-        if not super().feasible(model):
-            return False
-
         for module in model.modules():
             weight = getattr(module, "weight", None)
             if weight is not None and any(dim <= 0 for dim in weight.shape):

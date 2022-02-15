@@ -19,7 +19,7 @@ class Optimizer(ABC):
 
     @abstractmethod
     def optimize(
-        self, model: nn.Module, pruner: Pruner, objective: Objective, constraints: Constraint
+        self, model: nn.Module, pruner: Pruner, objective: Objective, constraint: Constraint
     ) -> nn.Module:
         pass
 
@@ -55,11 +55,11 @@ class GAOptimizer(Optimizer):
         self._history = None
 
     def optimize(
-        self, model: nn.Module, pruner: Pruner, objective: Objective, constraints: Constraint
+        self, model: nn.Module, pruner: Pruner, objective: Objective, constraint: Constraint
     ) -> nn.Module:
         self.__pruner = pruner
         self.__obj = objective
-        self.__const = constraints
+        self.__const = constraint
         self.__model = model
 
         creator.create("FitnessMax", base.Fitness, weights=(1.0,))
@@ -131,7 +131,7 @@ class GAOptimizer(Optimizer):
 
     def _feasible(self, individual: Any) -> bool:
         model = self._create_model(individual)
-        feasible = self.__const.feasible(model)
+        feasible = self.__const.feasible(model) if self.__const is not None else True
         del model
         return feasible
 
