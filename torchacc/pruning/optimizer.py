@@ -1,6 +1,6 @@
-from copy import deepcopy
 import random
 from abc import ABC, abstractmethod
+from copy import deepcopy
 from typing import Any, Iterable, List, Tuple
 
 import numpy as np
@@ -126,7 +126,7 @@ class GAOptimizer(Optimizer):
 
     def _mutation(self, individual: Any, toolbox: Toolbox) -> Any:
         if random.random() <= self._mutp:
-            individual = toolbox.mutate(individual)
+            individual = toolbox.mutate(individual)[0]
             del individual.fitness.values
         return individual
 

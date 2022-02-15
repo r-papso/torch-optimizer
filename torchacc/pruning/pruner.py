@@ -34,7 +34,6 @@ class ModulePruner(Pruner):
 
     def _prune_module(self, model: nn.Module, name: str) -> nn.Module:
         names = name.split(".")
-
         sequential = model.get_submodule(".".join(names[:-1]))
 
         if not isinstance(sequential, nn.Sequential):
@@ -42,8 +41,8 @@ class ModulePruner(Pruner):
 
         parent = model.get_submodule(".".join(names[:-2])) if len(names) > 2 else model
         filtered = [ch for ch_name, ch in sequential.named_children() if ch_name != names[-1]]
-
         setattr(parent, names[-2], nn.Sequential(*filtered))
+
         return model
 
 

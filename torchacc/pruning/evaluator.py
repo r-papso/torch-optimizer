@@ -30,10 +30,11 @@ class EvaluatorDecorator(Evaluator):
 
 
 class AccuracyEvaluator(EvaluatorDecorator):
-    def __init__(self, wrappee: Evaluator, val_loader: DataLoader) -> None:
+    def __init__(self, wrappee: Evaluator, val_loader: DataLoader, device: str) -> None:
         super().__init__(wrappee)
 
         self._loader = val_loader
+        self._device = device
 
     def evaluate(self, model: nn.Module) -> float:
         prev_evals = super().evaluate(model)
@@ -46,6 +47,7 @@ class AccuracyEvaluator(EvaluatorDecorator):
 
         with torch.no_grad():
             for inputs, labels in self._loader:
+                inputs = inputs.to(self._device)
                 outputs = model(inputs)
                 _, pred = torch.max(outputs.data, 1)
                 total += labels.size(0)
