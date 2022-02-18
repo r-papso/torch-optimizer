@@ -38,7 +38,8 @@ class GAOptimizer(Optimizer):
         tourn_size: int,
         n_gen: int,
         mutp: float,
-        indp: float,
+        mut_indp: float,
+        cx_indp: float,
         verbose: bool = True,
         verbose_freq: int = 1,
     ) -> None:
@@ -50,7 +51,8 @@ class GAOptimizer(Optimizer):
         self._tourn_size = tourn_size
         self._n_gen = n_gen
         self._mutp = mutp
-        self._indp = indp
+        self._mut_indp = mut_indp
+        self._cx_indp = cx_indp
         self._verbose = verbose
         self._verbose_freq = verbose_freq
         self._history = None
@@ -70,8 +72,8 @@ class GAOptimizer(Optimizer):
 
         tb.register("attr_bool", random.randint, 0, 1)
         tb.register("individual", tools.initRepeat, creator.Individual, tb.attr_bool, n=self._indl)
-        tb.register("mate", tools.cxTwoPoint)
-        tb.register("mutate", tools.mutFlipBit, indpb=self._indp)
+        tb.register("mate", tools.cxUniform, indpb=self._cx_indp)
+        tb.register("mutate", tools.mutFlipBit, indpb=self._mut_indp)
         tb.register("select", tools.selTournament, tournsize=self._tourn_size)
 
         logbook = tools.Logbook()
