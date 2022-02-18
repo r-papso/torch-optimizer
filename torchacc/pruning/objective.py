@@ -35,20 +35,20 @@ class ObjectiveContainer(Objective):
 
 
 class Accuracy(Objective):
-    def __init__(self, val_loader: DataLoader, device: str) -> None:
+    def __init__(self, val_loader: DataLoader) -> None:
         super().__init__()
 
         self._loader = val_loader
-        self._device = device
 
     def evaluate(self, model: nn.Module) -> Tuple[float, ...]:
         model.eval()
         correct, total = 0, 0
+        device = next(model.parameters()).device
 
         with torch.no_grad():
             for inputs, labels in self._loader:
-                inputs = inputs.to(self._device)
-                labels = labels.to(self._device)
+                inputs = inputs.to(device)
+                labels = labels.to(device)
 
                 outputs = model(inputs)
                 _, pred = torch.max(outputs.data, 1)
@@ -68,6 +68,8 @@ class MacsPenalty(Objective):
         self._input_shape = in_shape
 
     def evaluate(self, model: nn.Module) -> Tuple[float, ...]:
-        macs, _ = profile(model, inputs=(torch.randn(self._input_shape),), verbose=False)
+        device = next(model.parameters()).device
+        in_tensor = torch.randn(self._input_shape, device=device)
+        macs, _ = profile(model, inputs=(in_tensor,), verbose=False)
         penalty = self._weigh * max(0.0, macs - self._orig_macs * self._p)
         return (penalty,)
