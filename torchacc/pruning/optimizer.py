@@ -71,7 +71,8 @@ class GAOptimizer(Optimizer):
         tb = base.Toolbox()
 
         tb.register("attr_bool", random.randint, 0, 1)
-        tb.register("individual", tools.initRepeat, creator.Individual, tb.attr_bool, n=self._indl)
+        # tb.register("individual", tools.initRepeat, creator.Individual, tb.attr_bool, n=self._indl)
+        tb.register("population", self._create_pop, creator.Individual, self._pop_size, self._indl)
         tb.register("mate", tools.cxUniform, indpb=self._cx_indp)
         tb.register("mutate", tools.mutFlipBit, indpb=self._mut_indp)
         tb.register("select", tools.selTournament, tournsize=self._tourn_size)
@@ -83,7 +84,7 @@ class GAOptimizer(Optimizer):
         stats.register("min", np.min)
         stats.register("max", np.max)
 
-        population = self._generate_pop(pop_size=self._pop_size, toolbox=tb)
+        population = tb.population()
         self._evaluate_pop(population)
         best = tools.selBest(population, k=1)[0]
 
@@ -126,6 +127,22 @@ class GAOptimizer(Optimizer):
             candidate = toolbox.individual()
             if self._feasible(candidate):
                 pop.append(candidate)
+
+        return pop
+
+    def _create_pop(self, ind_cls: Any, pop_size: int, ind_size: int) -> Iterable[Any]:
+        pop = []
+
+        while len(pop) < pop_size:
+            for i in range(pop_size):
+                p = (i + 1) / (pop_size + 1)
+                ind = ind_cls([random.random() <= p for _ in range(ind_size)])
+
+                if self._feasible(ind):
+                    pop.append(ind)
+
+                if len(pop) == pop_size:
+                    break
 
         return pop
 
