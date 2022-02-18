@@ -1,6 +1,6 @@
 import warnings
 from abc import ABC, abstractmethod
-from typing import Iterable, Tuple
+from typing import Tuple
 
 import torch
 import torch.nn as nn
@@ -20,7 +20,7 @@ class Objective(ABC):
 
 
 class ObjectiveContainer(Objective):
-    def __init__(self, objectives: Iterable[Objective]) -> None:
+    def __init__(self, *objectives: Objective) -> None:
         super().__init__()
 
         self._objs = objectives
@@ -48,6 +48,8 @@ class Accuracy(Objective):
         with torch.no_grad():
             for inputs, labels in self._loader:
                 inputs = inputs.to(self._device)
+                labels = labels.to(self._device)
+
                 outputs = model(inputs)
                 _, pred = torch.max(outputs.data, 1)
                 total += labels.size(0)

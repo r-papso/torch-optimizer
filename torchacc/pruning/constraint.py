@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Iterable
 
 import torch.nn as nn
 
@@ -14,7 +13,7 @@ class Constraint(ABC):
 
 
 class ConstraintContainer(Constraint):
-    def __init__(self, constraints: Iterable[Constraint]) -> None:
+    def __init__(self, *constraints: Constraint) -> None:
         super().__init__()
 
         self._constrs = constraints
@@ -24,8 +23,8 @@ class ConstraintContainer(Constraint):
 
 
 class ChannelConstraint(Constraint):
-    def __init__(self, previous: Constraint) -> None:
-        super().__init__(previous)
+    def __init__(self) -> None:
+        super().__init__()
 
     def feasible(self, model: nn.Module) -> bool:
         for module in model.modules():
