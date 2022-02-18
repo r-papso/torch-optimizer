@@ -73,5 +73,11 @@ class MacsPenalty(Objective):
         device = next(model.parameters()).device
         in_tensor = torch.randn(self._input_shape, device=device)
         macs, _ = profile(model, inputs=(in_tensor,), verbose=False)
-        penalty = self._weigh * max(0.0, macs - self._orig_macs * self._p)
-        return (penalty,)
+
+        # To scale the penalty to [0, 1], we need to divide current penalty by maximum possible
+        # penalty, i. e.: max(0, macs - orig_macs * p) / (orig_macs - orig_macs * p).
+        penalty = max(0.0, macs - self._orig_macs * self._p)
+        penalty_scaled = penalty / (self._orig_macs - self._orig_macs * self._p)
+        penalty_weighted = self._weigh * penalty_scaled
+
+        return (penalty_weighted,)
