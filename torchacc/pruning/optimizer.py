@@ -1,6 +1,7 @@
 import random
 from abc import ABC, abstractmethod
 from copy import deepcopy
+from datetime import datetime
 from typing import Any, Iterable, List, Tuple
 
 import numpy as np
@@ -106,7 +107,8 @@ class GAOptimizer(Optimizer):
 
             if self._verbose and gen % self._verbose_freq == 0:
                 stats_str = ", ".join([f"{k.capitalize()} = {v:.4f}" for k, v in record.items()])
-                print(f"Generation {gen:04d}: {stats_str}")
+                time = datetime.now().strftime("%H:%M:%S")
+                print(f"{time} - Generation {gen:04d}: {stats_str}")
 
         self._history = logbook
         model_cpy = deepcopy(model)
