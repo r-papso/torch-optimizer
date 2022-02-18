@@ -75,8 +75,10 @@ class ChannelPruner(Pruner):
         ), "Individual's length must be equal to number of channels in channel_map"
 
         print(f"Pruner -> model's device: {next(model.parameters()).device}")
+        device = next(model.parameters()).device
+        example_input = torch.randn(self._input_shape, device=device)
         DG = tp.DependencyGraph()
-        DG = DG.build_dependency(model, example_inputs=torch.randn(self._input_shape))
+        DG = DG.build_dependency(model, example_inputs=example_input)
         print(f"Pruner -> model's device: {next(model.parameters()).device}")
 
         for module_name, (start, lenght) in self._channel_map.items():
