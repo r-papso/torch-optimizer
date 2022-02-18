@@ -27,14 +27,11 @@ class ObjectiveContainer(Objective):
 
     def evaluate(self, model: nn.Module) -> Tuple[float, ...]:
         obj_vals = [obj.evaluate(model) for obj in self._objs]
-        max_len = max(len(obj_val) for obj_val in obj_vals)
-        result = [0.0] * max_len
 
-        for obj_val in obj_vals:
-            for i in range(max_len):
-                result[i] += obj_val[i] if i < len(obj_val) else 0.0
+        if not all(len(tup) == len(obj_vals[0]) for tup in obj_vals):
+            raise ValueError("All objectives must be of same dimension")
 
-        return tuple(result)
+        return tuple(map(sum, zip(*obj_vals)))
 
 
 class Accuracy(Objective):
