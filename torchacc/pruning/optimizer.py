@@ -82,7 +82,7 @@ class GAOptimizer(Optimizer):
 
         population = self._generate_pop(pop_size=self._pop_size, toolbox=tb)
         self._evaluate_pop(population)
-        best = tools.selBest(population, k=1)
+        best = tools.selBest(population, k=1)[0]
 
         for gen in range(self._n_gen):
             new_pop = list(map(tb.clone, self._elite_set(population)))
@@ -168,4 +168,4 @@ class GAOptimizer(Optimizer):
         return tools.selBest(population, k=self._elite_num)
 
     def _keep_best(self, curr_best: Any, population: Iterable[Any]) -> Any:
-        return tools.selBest([curr_best] + tools.selBest(population, k=1), k=1)
+        return tools.selBest([curr_best] + tools.selBest(population, k=1), k=1)[0]
