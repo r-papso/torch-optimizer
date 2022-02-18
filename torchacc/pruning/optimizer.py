@@ -120,7 +120,11 @@ class GAOptimizer(Optimizer):
         return self._history
 
     def _generate_pop(self, pop_size: int, toolbox: Toolbox) -> Iterable[Any]:
-        pop = []
+        hack_ind = toolbox.individual()
+        for i in range(len(hack_ind)):
+            hack_ind[i] = 1
+
+        pop = [hack_ind]
 
         while len(pop) < pop_size:
             candidate = toolbox.individual()
