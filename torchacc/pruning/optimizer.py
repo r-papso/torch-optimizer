@@ -105,8 +105,8 @@ class GAOptimizer(Optimizer):
             logbook.record(gen=gen, **record)
 
             if self._verbose and gen % self._verbose_freq == 0:
-                stats = ", ".join([f"{k.capitalize()} = {v:.4f}" for k, v in record.items()])
-                print(f"Generation {gen:04d}: {stats}")
+                stats_str = ", ".join([f"{k.capitalize()} = {v:.4f}" for k, v in record.items()])
+                print(f"Generation {gen:04d}: {stats_str}")
 
         self._history = logbook
         model_cpy = deepcopy(model)
