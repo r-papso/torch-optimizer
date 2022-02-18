@@ -47,11 +47,9 @@ class Accuracy(Objective):
         with torch.no_grad():
             for inputs, labels in self._data:
                 if inputs.device != device:
-                    print(f"Inputs' device: {inputs.device}, model device: {device}")
                     inputs = inputs.to(device)
 
                 if labels.device != device:
-                    print(f"Labels' device: {labels.device}, model device: {device}")
                     labels = labels.to(device)
 
                 outputs = model(inputs)
