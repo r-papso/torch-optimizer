@@ -1,6 +1,6 @@
 import warnings
 from abc import ABC, abstractmethod
-from typing import Tuple
+from typing import Iterable, Tuple
 
 import torch
 import torch.nn as nn
@@ -35,10 +35,10 @@ class ObjectiveContainer(Objective):
 
 
 class Accuracy(Objective):
-    def __init__(self, val_loader: DataLoader) -> None:
+    def __init__(self, val_data: Iterable[Tuple[torch.Tensor, torch.Tensor]]) -> None:
         super().__init__()
 
-        self._loader = val_loader
+        self._data = val_data
 
     def evaluate(self, model: nn.Module) -> Tuple[float, ...]:
         model.eval()
@@ -46,7 +46,7 @@ class Accuracy(Objective):
         device = next(model.parameters()).device
 
         with torch.no_grad():
-            for inputs, labels in self._loader:
+            for inputs, labels in self._data:
                 inputs = inputs.to(device)
                 labels = labels.to(device)
 
