@@ -47,8 +47,13 @@ class Accuracy(Objective):
 
         with torch.no_grad():
             for inputs, labels in self._data:
-                inputs = inputs.to(device)
-                labels = labels.to(device)
+                if inputs.device != device:
+                    print(f"Inputs' device: {inputs.device}, model device: {device}")
+                    inputs = inputs.to(device)
+
+                if labels.device != device:
+                    print(f"Labels' device: {inputs.device}, model device: {device}")
+                    labels = labels.to(device)
 
                 outputs = model(inputs)
                 _, pred = torch.max(outputs.data, 1)
