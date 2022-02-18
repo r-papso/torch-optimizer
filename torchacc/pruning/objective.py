@@ -5,7 +5,6 @@ from typing import Iterable, Tuple
 import torch
 import torch.nn as nn
 from thop import profile
-from torch.utils.data import DataLoader
 
 warnings.simplefilter("ignore", UserWarning)
 
@@ -52,7 +51,7 @@ class Accuracy(Objective):
                     inputs = inputs.to(device)
 
                 if labels.device != device:
-                    print(f"Labels' device: {inputs.device}, model device: {device}")
+                    print(f"Labels' device: {labels.device}, model device: {device}")
                     labels = labels.to(device)
 
                 outputs = model(inputs)
