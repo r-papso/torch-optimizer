@@ -135,7 +135,7 @@ class GAOptimizer(Optimizer):
 
         while len(pop) < pop_size:
             for i in range(pop_size):
-                p = (i + 1) / (pop_size + 1)
+                p = (i + 1) / pop_size
                 ind = ind_cls([random.random() <= p for _ in range(ind_size)])
 
                 if self._feasible(ind):
