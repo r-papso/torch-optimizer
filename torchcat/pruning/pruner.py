@@ -12,7 +12,7 @@ class Pruner(ABC):
         super().__init__()
 
     @abstractmethod
-    def prune(self, model: nn.Module, individual: Any) -> nn.Module:
+    def prune(self, model: nn.Module, mask: Any) -> nn.Module:
         pass
 
 
@@ -22,12 +22,10 @@ class ModulePruner(Pruner):
 
         self._names = names
 
-    def prune(self, model: nn.Module, individual: Any) -> nn.Module:
-        assert len(individual) == len(
-            self._names
-        ), "Individual's length must be equal to names length"
+    def prune(self, model: nn.Module, mask: Any) -> nn.Module:
+        assert len(mask) == len(self._names), "Mask's length must be equal to names length"
 
-        for name in [name for sign, name in zip(individual, self._names) if not sign]:
+        for name in [name for sign, name in zip(mask, self._names) if not sign]:
             model = self._prune_module(model, name)
 
         return model
@@ -62,7 +60,7 @@ class ResnetModulePruner(ModulePruner):
         shortcut = model.get_submodule(f"{name}.{sc_name}")
 
         # Shortcut connection is empty
-        if len(list(shortcut.children())) == 0:
+        if isinstance(shortcut, nn.Sequential) and len(list(shortcut.children())) == 0:
             return super()._prune_module(model, name)
 
         p_name, ch_name = name.rsplit(".", 1)
@@ -79,10 +77,10 @@ class ChannelPruner(Pruner):
         self._channel_map = channel_map
         self._input_shape = input_shape
 
-    def prune(self, model: nn.Module, individual: Any) -> nn.Module:
-        assert len(individual) == sum(
+    def prune(self, model: nn.Module, mask: Any) -> nn.Module:
+        assert len(mask) == sum(
             v[1] for v in self._channel_map.values()
-        ), "Individual's length must be equal to number of channels in channel_map"
+        ), "Mask's length must be equal to number of channels in channel_map"
 
         device = next(model.parameters()).device
         example_input = torch.randn(self._input_shape, device=device)
@@ -90,7 +88,7 @@ class ChannelPruner(Pruner):
         DG = DG.build_dependency(model, example_inputs=example_input)
 
         for module_name, (start, lenght) in self._channel_map.items():
-            module_mask = individual[start : start + lenght]
+            module_mask = mask[start : start + lenght]
 
             if not all(module_mask):
                 module = model.get_submodule(module_name)
