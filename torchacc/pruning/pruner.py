@@ -47,17 +47,27 @@ class ModulePruner(Pruner):
 
 
 class ResnetModulePruner(ModulePruner):
-    def __init__(self, names: Iterable[str]) -> None:
+    def __init__(self, names: Iterable[str], shortcut_name: str) -> None:
         super().__init__(names)
 
+        self._shortcut_name = shortcut_name
+
     def _prune_module(self, model: nn.Module, name: str) -> nn.Module:
-        if "downsample" in [ch_name for ch_name, _ in model.get_submodule(name).named_children()]:
-            downsample = model.get_submodule(f"{name}.downsample")
-            p_name, ch_name = name.rsplit(".", 1)
-            setattr(model.get_submodule(p_name), ch_name, downsample)
-            return model
-        else:
+        sc_name = self._shortcut_name
+
+        # Shortcut module is not present in the sequential module
+        if not any(sc_name in ch_name for ch_name, _ in model.get_submodule(name).named_children()):
             return super()._prune_module(model, name)
+
+        shortcut = model.get_submodule(f"{name}.{sc_name}")
+
+        # Shortcut connection is empty
+        if len(list(shortcut.children())) == 0:
+            return super()._prune_module(model, name)
+
+        p_name, ch_name = name.rsplit(".", 1)
+        setattr(model.get_submodule(p_name), ch_name, shortcut)
+        return model
 
 
 class ChannelPruner(Pruner):
