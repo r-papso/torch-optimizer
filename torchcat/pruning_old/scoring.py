@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from numpy import float32
 
 import torch
 from torch import nn
@@ -24,6 +23,32 @@ class LnScoring(Scoring):
         param = getattr(layer, name)
         mask = getattr(layer, f"{name}_mask", None)
         score = torch.abs(torch.float_power(param, self.__n)).type(dtype=torch.float32)
+
+        if mask is not None:
+            score = torch.where(mask == False, torch.Tensor([float("inf")]), score)
+
+        return score
+
+
+class InvertedLnScoring(Scoring):
+    def __init__(self, n: int) -> None:
+        super().__init__()
+
+        self.__lnscoring = LnScoring(n)
+
+    def get_score(self, layer: nn.Module, name: str) -> torch.Tensor:
+        score = self.__lnscoring(layer, name)
+        return torch.where(score == float("inf"), score, -score)
+
+
+class RandomScoring(Scoring):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def get_score(self, layer: nn.Module, name: str) -> torch.Tensor:
+        param = getattr(layer, name)
+        mask = getattr(layer, f"{name}_mask", None)
+        score = torch.randn_like(param, dtype=param.dtype)
 
         if mask is not None:
             score = torch.where(mask == False, torch.Tensor([float("inf")]), score)

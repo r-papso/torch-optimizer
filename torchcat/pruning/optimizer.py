@@ -106,7 +106,7 @@ class GAOptimizer(Optimizer):
             best = self._keep_best(best, population)
 
             record = stats.compile(population)
-            logbook.record(gen=gen, **record)
+            logbook.record(gen=gen, best=best, **record)
 
             if self._verbose and gen % self._verbose_freq == 0:
                 stats_str = ", ".join([f"{k.capitalize()} = {v:.4f}" for k, v in record.items()])
