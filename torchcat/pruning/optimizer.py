@@ -88,6 +88,9 @@ class GAOptimizer(Optimizer):
         self._evaluate_pop(population)
         best = tools.selBest(population, k=1)[0]
 
+        record = stats.compile(population)
+        logbook.record(gen=-1, best=best, **record)
+
         for gen in range(self._n_gen):
             new_pop = list(map(tb.clone, self._elite_set(population)))
 
