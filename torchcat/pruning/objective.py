@@ -5,7 +5,10 @@ from typing import Iterable, List, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
+from torch import Tensor
 from thop import profile
+
+from .. import utils
 
 warnings.simplefilter("ignore", UserWarning)
 
@@ -35,34 +38,17 @@ class ObjectiveContainer(Objective):
 
 
 class Accuracy(Objective):
-    def __init__(self, val_data: Iterable[Tuple[torch.Tensor, torch.Tensor]]) -> None:
+    def __init__(self, val_data: Iterable[Tuple[Tensor, Tensor]]) -> None:
         super().__init__()
 
         self._data = val_data
 
     def evaluate(self, model: nn.Module) -> Tuple[float, ...]:
-        model.eval()
-        correct, total = 0, 0
-        device = next(model.parameters()).device
-
-        with torch.no_grad():
-            for inputs, labels in self._data:
-                if inputs.device != device:
-                    inputs = inputs.to(device)
-
-                if labels.device != device:
-                    labels = labels.to(device)
-
-                outputs = model(inputs)
-                _, pred = torch.max(outputs.data, 1)
-                total += labels.size(0)
-                correct += (pred == labels).sum().item()
-
-        return (correct / total,)
+        return (utils.evaluate(model, self._data),)
 
 
-class Macs(Objective):
-    def __init__(self, weight: float, p: float, orig_macs: int, in_shape: Tuple[int, ...],) -> None:
+class MacsPenalty(Objective):
+    def __init__(self, weight: float, p: float, orig_macs: int, in_shape: Tuple[int, ...]) -> None:
         super().__init__()
 
         self._weigh = weight
@@ -84,7 +70,7 @@ class Macs(Objective):
         return (penalty_weighted,)
 
 
-class Latency(Objective):
+class LatencyPenalty(Objective):
     def __init__(
         self, weight: float, p: float, orig_time: float, in_shape: Tuple[int, ...], n_iters: int
     ) -> None:
@@ -126,3 +112,35 @@ class Latency(Objective):
             times.append(start.elapsed_time(end))
 
         return times
+
+
+class Macs(Objective):
+    def __init__(self, orig_macs: int, weight: float, in_shape: Tuple[int, ...]) -> None:
+        super().__init__()
+
+        self._orig_macs = orig_macs
+        self._weight = weight
+        self._in_shape = in_shape
+
+    def evaluate(self, model: nn.Module) -> Tuple[float, ...]:
+        device = next(model.parameters()).device
+        in_tensor = torch.randn(self._input_shape, device=device)
+        macs, _ = profile(model, inputs=(in_tensor,), verbose=False)
+
+        return (self._weight * (1.0 - macs / self._orig_macs),)
+
+
+class LeakyAccuracy(Objective):
+    def __init__(
+        self, a: float, b: float, t: float, val_data: Iterable[Tuple[Tensor, Tensor]]
+    ) -> None:
+        super().__init__()
+
+        self._a = a
+        self._b = b
+        self._t = t
+        self._data = val_data
+
+    def evaluate(self, model: nn.Module) -> Tuple[float, ...]:
+        accuracy = utils.evaluate(model, self._data)
+        return (min(self._a * (accuracy - self._t), self._b * (accuracy - self._t)),)
