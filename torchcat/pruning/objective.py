@@ -124,7 +124,7 @@ class Macs(Objective):
 
     def evaluate(self, model: nn.Module) -> Tuple[float, ...]:
         device = next(model.parameters()).device
-        in_tensor = torch.randn(self._input_shape, device=device)
+        in_tensor = torch.randn(self._in_shape, device=device)
         macs, _ = profile(model, inputs=(in_tensor,), verbose=False)
 
         return (self._weight * (1.0 - macs / self._orig_macs),)
