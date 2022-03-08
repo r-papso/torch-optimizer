@@ -116,6 +116,10 @@ class GAOptimizer(Optimizer):
                 time = datetime.now().strftime("%H:%M:%S")
                 print(f"{time} - Generation {gen:04d}: {stats_str}")
 
+            if record["std"] == 0:
+                print(f"Population is too homogenous, terminating GA.")
+                break
+
         self._history = logbook
         model_cpy = deepcopy(model)
         return pruner.prune(model_cpy, best)
