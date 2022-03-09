@@ -40,7 +40,7 @@ class ModulePruner(Pruner):
 
         parent = model.get_submodule(".".join(names[:-2])) if len(names) > 2 else model
         filtered = OrderedDict(
-            [(ch, ch_name) for ch_name, ch in sequential.named_children() if ch_name != names[-1]]
+            [(ch_name, ch) for ch_name, ch in sequential.named_children() if ch_name != names[-1]]
         )
         setattr(parent, names[-2], nn.Sequential(filtered))
 
