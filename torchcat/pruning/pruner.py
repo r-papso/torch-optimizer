@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections import OrderedDict
 from typing import Any, Dict, Iterable, Tuple
 
 import torch
@@ -38,8 +39,10 @@ class ModulePruner(Pruner):
             raise ValueError("Pruning modules outside of sequential containers is not supported")
 
         parent = model.get_submodule(".".join(names[:-2])) if len(names) > 2 else model
-        filtered = [ch for ch_name, ch in sequential.named_children() if ch_name != names[-1]]
-        setattr(parent, names[-2], nn.Sequential(*filtered))
+        filtered = OrderedDict(
+            [(ch, ch_name) for ch_name, ch in sequential.named_children() if ch_name != names[-1]]
+        )
+        setattr(parent, names[-2], nn.Sequential(filtered))
 
         return model
 
