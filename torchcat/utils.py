@@ -43,7 +43,6 @@ def train(
     checkpoint_path: str = None,
     lr_scheduler: LRScheduler = None,
 ) -> dict:
-    # Create metrics dict
     metric_dict = {}
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -60,7 +59,7 @@ def train(
     for name, metric in val_metrics.items():
         metric.attach(trainer, name)
 
-    trainer.add_event_handler(Events.EPOCH_COMPLETED, _log_train, metric_dict)
+    trainer.add_event_handler(Events.EPOCH_COMPLETED, _log_train, metric_dict, optimizer)
     trainer.add_event_handler(Events.EPOCH_COMPLETED, _log_test, evaluator, test_set, metric_dict)
     trainer.add_event_handler(Events.EPOCH_COMPLETED, _log_time)
 
@@ -99,28 +98,31 @@ def _custom_output_transform(x, y, y_pred, loss):
     return {"y": y, "y_pred": y_pred, "loss": loss.item(), "criterion_kwargs": {}}
 
 
-def _log_train(engine: Engine, metric_dict: dict) -> None:
+def _log_train(engine: Engine, metric_dict: dict, optimizer: Optimizer) -> None:
     epoch = engine.state.epoch
     metrics = engine.state.metrics
     acc = metrics["accuracy"]
     loss = metrics["loss"]
     time = datetime.now().strftime("%H:%M:%S")
+    lr = optimizer.param_groups[0]["lr"]
 
     metric_dict[epoch] = {"train_acc": acc, "train_loss": loss}
-    print(f"{time} - Epoch: {epoch:04d} Train accuracy: {acc:.4f} Train loss: {loss:.4f}")
+    print(
+        f"{time} - Epoch: {epoch:04d} Train accuracy: {acc:.4f} Train loss: {loss:.4f} LR: {lr:.8f}"
+    )
 
 
 def _log_test(engine: Engine, evaluator: Engine, test_set: Iterable, metric_dict: dict) -> None:
     evaluator.run(test_set)
 
-    epoch = evaluator.state.epoch
+    epoch = engine.state.epoch
     metrics = evaluator.state.metrics
     acc = metrics["accuracy"]
     loss = metrics["loss"]
     time = datetime.now().strftime("%H:%M:%S")
 
-    metric_dict[epoch].update({"val_acc": acc, "val_loss": loss})
-    print(f"{time} - Epoch: {epoch:02d} Val accuracy: {acc:.4f} Val loss: {loss:.4f}")
+    metric_dict[epoch].update({"test_acc": acc, "test_loss": loss})
+    print(f"{time} - Epoch: {epoch:04d} Test accuracy: {acc:.4f} Test loss: {loss:.4f}")
 
 
 def _log_time(engine: Engine) -> None:
