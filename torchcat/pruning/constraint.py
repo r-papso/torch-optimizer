@@ -1,10 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Iterable, Tuple
-from torch import Tensor
-
-import torch.nn as nn
-
-from .. import utils
+from typing import Any, Dict, Tuple
 
 
 class Constraint(ABC):
@@ -12,7 +7,7 @@ class Constraint(ABC):
         super().__init__()
 
     @abstractmethod
-    def feasible(self, model: nn.Module) -> bool:
+    def feasible(self, solution: Any) -> bool:
         pass
 
 
@@ -22,30 +17,29 @@ class ConstraintContainer(Constraint):
 
         self._constrs = constraints
 
-    def feasible(self, model: nn.Module) -> bool:
-        return all(constr.feasible(model) for constr in self._constrs)
+    def feasible(self, solution: Any) -> bool:
+        return all(constr.feasible(solution) for constr in self._constrs)
 
 
 class ChannelConstraint(Constraint):
-    def __init__(self) -> None:
+    def __init__(self, channel_map: Dict[str, Tuple[int, int]]) -> None:
         super().__init__()
 
-    def feasible(self, model: nn.Module) -> bool:
-        for module in model.modules():
-            weight = getattr(module, "weight", None)
-            if weight is not None and any(dim <= 0 for dim in weight.shape):
+        self._map = channel_map
+
+    def feasible(self, solution: Any) -> bool:
+        for start, lenght in self._map.values():
+            if not any(solution[start : start + lenght]):
                 return False
 
         return True
 
 
-class AccuracyConstraint(Constraint):
-    def __init__(self, t: float, val_data: Iterable[Tuple[Tensor, Tensor]]) -> None:
+class LZeroNorm(Constraint):
+    def __init__(self, max_nonzero: int) -> None:
         super().__init__()
 
-        self._t = t
-        self._data = val_data
+        self._max_nonzero = max_nonzero
 
-    def feasible(self, model: nn.Module) -> bool:
-        accuracy = utils.evaluate(model, self._data)
-        return accuracy > self._t
+    def feasible(self, solution: Any) -> bool:
+        return sum(solution) <= self._max_nonzero

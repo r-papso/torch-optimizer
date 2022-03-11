@@ -1,17 +1,14 @@
 import random
 from abc import ABC, abstractmethod
-from copy import deepcopy
 from datetime import datetime
 from typing import Any, Iterable, List, Tuple
 
 import numpy as np
-import torch.nn as nn
 from deap import base, creator, tools
 from deap.base import Toolbox
 
 from .constraint import Constraint
 from .objective import Objective
-from .pruner import Pruner
 
 
 class Optimizer(ABC):
@@ -19,13 +16,7 @@ class Optimizer(ABC):
         pass
 
     @abstractmethod
-    def optimize(
-        self, model: nn.Module, pruner: Pruner, objective: Objective, constraint: Constraint
-    ) -> nn.Module:
-        pass
-
-    @abstractmethod
-    def history(self) -> Any:
+    def optimize(self, objective: Objective, constraint: Constraint) -> Any:
         pass
 
 
@@ -55,87 +46,82 @@ class GAOptimizer(Optimizer):
         self._cx_indp = cx_indp
         self._verbose = verbose
         self._verbose_freq = verbose_freq
+
+        self._best = None
+        self._population = None
         self._history = None
 
-    def optimize(
-        self, model: nn.Module, pruner: Pruner, objective: Objective, constraint: Constraint
-    ) -> nn.Module:
-        self.__pruner = pruner
-        self.__obj = objective
-        self.__const = constraint
-        self.__model = model
-
+    def optimize(self, objective: Objective, constraint: Constraint) -> Any:
         creator.create("FitnessMax", base.Fitness, weights=(1.0,))
         creator.create("Individual", list, fitness=creator.FitnessMax)
 
         tb = base.Toolbox()
 
         tb.register("attr_bool", random.randint, 0, 1)
-        # tb.register("individual", tools.initRepeat, creator.Individual, tb.attr_bool, n=self._indl)
         tb.register("population", self._create_pop, creator.Individual, self._pop_size, self._indl)
         tb.register("mate", tools.cxUniform, indpb=self._cx_indp)
         tb.register("mutate", tools.mutFlipBit, indpb=self._mut_indp)
         tb.register("select", tools.selTournament, tournsize=self._tourn_size)
 
-        logbook = tools.Logbook()
+        self._history = tools.Logbook()
         stats = tools.Statistics(key=lambda ind: ind.fitness.values)
         stats.register("avg", np.mean)
         stats.register("std", np.std)
         stats.register("min", np.min)
         stats.register("max", np.max)
 
-        population = tb.population()
-        self._evaluate_pop(population)
-        best = tools.selBest(population, k=1)[0]
+        self._population = tb.population()
+        self._handle_generation(gen_num=0, obj=objective)
 
-        record = stats.compile(population)
-        logbook.record(gen=-1, best=best, **record)
-
-        for gen in range(self._n_gen):
+        for gen in range(1, self._n_gen + 1):
             new_pop = list(map(tb.clone, self._elite_set(population)))
 
             while len(new_pop) < len(population):
                 off1, off2 = self._crossover(population, tb)
                 off1, off2 = self._mutation(off1, tb), self._mutation(off2, tb)
 
-                if self._feasible(off1):
+                if constraint.feasible(off1):
                     new_pop.append(off1)
 
-                if self._feasible(off2):
+                if constraint.feasible(off2):
                     new_pop.append(off2)
 
             population = new_pop
-            self._evaluate_pop(population)
-            best = self._keep_best(best, population)
+            self._handle_generation(gen_num=gen, obj=objective)
 
-            record = stats.compile(population)
-            logbook.record(gen=gen, best=best, **record)
+        return self._best
 
-            if self._verbose and gen % self._verbose_freq == 0:
-                stats_str = ", ".join([f"{k.capitalize()} = {v:.4f}" for k, v in record.items()])
-                time = datetime.now().strftime("%H:%M:%S")
-                print(f"{time} - Generation {gen:04d}: {stats_str}")
+    def best(self) -> Any:
+        return self._best
 
-            if record["std"] == 0:
-                print(f"Population is too homogenous, terminating GA.")
-                break
-
-        self._history = logbook
-        model_cpy = deepcopy(model)
-        return pruner.prune(model_cpy, best)
+    def population(self) -> Iterable[Any]:
+        return self._population
 
     def history(self) -> Any:
         return self._history
 
-    def _generate_pop(self, pop_size: int, toolbox: Toolbox) -> Iterable[Any]:
-        pop = []
+    def _handle_generation(self, gen_num: int, obj: Objective) -> None:
+        # Evaluate population
+        for individual in self._population:
+            individual.fitness.values = obj.evaluate(individual)
 
-        while len(pop) < pop_size:
-            candidate = toolbox.individual()
-            if self._feasible(candidate):
-                pop.append(candidate)
+        # Keep current best found solution
+        self._best = (
+            self._keep_best(self._best, self._population)
+            if self._best is not None
+            else tools.selBest(self._population, k=1)[0]
+        )
 
-        return pop
+        # Compute statistics of current population
+        stats = self._create_stats()
+        record = stats.compile(self._population)
+        self._history.record(gen=gen_num, best=self._best, **record)
+
+        # Print statistcs to terminal
+        if self._verbose and gen_num % self._verbose_freq == 0:
+            stats_str = ", ".join([f"{k.capitalize()} = {v:.4f}" for k, v in record.items()])
+            time = datetime.now().strftime("%H:%M:%S")
+            print(f"{time} - Generation {gen_num:04d}: {stats_str}")
 
     def _create_pop(self, ind_cls: Any, pop_size: int, ind_size: int) -> Iterable[Any]:
         pop = []
@@ -152,27 +138,6 @@ class GAOptimizer(Optimizer):
                     break
 
         return pop
-
-    def _evaluate_pop(self, population: Iterable[Any]) -> None:
-        for individual in population:
-            individual.fitness.values = self._evaluate(individual)
-
-    def _feasible(self, individual: Any) -> bool:
-        model = self._create_model(individual)
-        feasible = self.__const.feasible(model) if self.__const is not None else True
-        del model
-        return feasible
-
-    def _evaluate(self, individual: Any) -> Tuple[float, ...]:
-        model = self._create_model(individual)
-        fitness = self.__obj.evaluate(model)
-        del model
-        return fitness
-
-    def _create_model(self, individual: Any) -> nn.Module:
-        model_cpy = deepcopy(self.__model)
-        model_cpy = self.__pruner.prune(model_cpy, individual)
-        return model_cpy
 
     def _crossover(self, population: Iterable[Any], toolbox: Toolbox) -> Tuple[Any]:
         # Parent selection
@@ -197,3 +162,11 @@ class GAOptimizer(Optimizer):
 
     def _keep_best(self, curr_best: Any, population: Iterable[Any]) -> Any:
         return tools.selBest([curr_best] + tools.selBest(population, k=1), k=1)[0]
+
+    def _create_stats(self) -> tools.Statistics:
+        stats = tools.Statistics(key=lambda ind: ind.fitness.values)
+        stats.register("avg", np.mean)
+        stats.register("std", np.std)
+        stats.register("min", np.min)
+        stats.register("max", np.max)
+        return stats
