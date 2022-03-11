@@ -33,40 +33,6 @@ def cifar10_loaders(
     return train_loader, val_loader, test_loader
 
 
-def custom_output_transform(x, y, y_pred, loss):
-    return {"y": y, "y_pred": y_pred, "loss": loss.item(), "criterion_kwargs": {}}
-
-
-def log_train(engine: Engine, metric_dict: dict) -> None:
-    epoch = engine.state.epoch
-    metrics = engine.state.metrics
-    acc = metrics["accuracy"]
-    loss = metrics["loss"]
-    time = datetime.now().strftime("%H:%M:%S")
-
-    metric_dict[epoch] = {"train_acc": acc, "train_loss": loss}
-    print(f"{time} - Epoch: {epoch:04d} Train accuracy: {acc:.4f} Train loss: {loss:.4f}")
-
-
-def log_test(engine: Engine, evaluator: Engine, test_set: Iterable, metric_dict: dict) -> None:
-    evaluator.run(test_set)
-
-    epoch = evaluator.state.epoch
-    metrics = evaluator.state.metrics
-    acc = metrics["accuracy"]
-    loss = metrics["loss"]
-    time = datetime.now().strftime("%H:%M:%S")
-
-    metric_dict[epoch].update({"val_acc": acc, "val_loss": loss})
-    print(f"{time} - Epoch: {epoch:02d} Val accuracy: {acc:.4f} Val loss: {loss:.4f}")
-
-
-def log_time(engine):
-    name = engine.last_event_name.name
-    time = engine.state.times[name]
-    print(f"{name} took {time:.4f} seconds")
-
-
 def train(
     model: nn.Module,
     train_set: Iterable,
@@ -85,7 +51,7 @@ def train(
     model = model.to(device)
 
     trainer = create_supervised_trainer(
-        model, optimizer, loss_fn, device=device, output_transform=custom_output_transform
+        model, optimizer, loss_fn, device=device, output_transform=_custom_output_transform
     )
 
     val_metrics = {"accuracy": metrics.Accuracy(), "loss": metrics.Loss(loss_fn)}
@@ -94,9 +60,9 @@ def train(
     for name, metric in val_metrics.items():
         metric.attach(trainer, name)
 
-    trainer.add_event_handler(Events.EPOCH_COMPLETED, log_train, metric_dict)
-    trainer.add_event_handler(Events.EPOCH_COMPLETED, log_test, evaluator, test_set, metric_dict)
-    trainer.add_event_handler(Events.EPOCH_COMPLETED, log_time)
+    trainer.add_event_handler(Events.EPOCH_COMPLETED, _log_train, metric_dict)
+    trainer.add_event_handler(Events.EPOCH_COMPLETED, _log_test, evaluator, test_set, metric_dict)
+    trainer.add_event_handler(Events.EPOCH_COMPLETED, _log_time)
 
     if lr_scheduler is not None:
         trainer.add_event_handler(Events.EPOCH_COMPLETED, lr_scheduler)
@@ -108,7 +74,7 @@ def train(
     return metric_dict
 
 
-def test(model: nn.Module, data: Iterable, device: str) -> float:
+def evaluate(model: nn.Module, data: Iterable, device: str) -> float:
     model.eval()
     correct, total = 0, 0
 
@@ -123,3 +89,37 @@ def test(model: nn.Module, data: Iterable, device: str) -> float:
             correct += (pred == labels).sum().item()
 
     return correct / total
+
+
+def _custom_output_transform(x, y, y_pred, loss):
+    return {"y": y, "y_pred": y_pred, "loss": loss.item(), "criterion_kwargs": {}}
+
+
+def _log_train(engine: Engine, metric_dict: dict) -> None:
+    epoch = engine.state.epoch
+    metrics = engine.state.metrics
+    acc = metrics["accuracy"]
+    loss = metrics["loss"]
+    time = datetime.now().strftime("%H:%M:%S")
+
+    metric_dict[epoch] = {"train_acc": acc, "train_loss": loss}
+    print(f"{time} - Epoch: {epoch:04d} Train accuracy: {acc:.4f} Train loss: {loss:.4f}")
+
+
+def _log_test(engine: Engine, evaluator: Engine, test_set: Iterable, metric_dict: dict) -> None:
+    evaluator.run(test_set)
+
+    epoch = evaluator.state.epoch
+    metrics = evaluator.state.metrics
+    acc = metrics["accuracy"]
+    loss = metrics["loss"]
+    time = datetime.now().strftime("%H:%M:%S")
+
+    metric_dict[epoch].update({"val_acc": acc, "val_loss": loss})
+    print(f"{time} - Epoch: {epoch:02d} Val accuracy: {acc:.4f} Val loss: {loss:.4f}")
+
+
+def _log_time(engine):
+    name = engine.last_event_name.name
+    time = engine.state.times[name]
+    print(f"{name} took {time:.4f} seconds")
