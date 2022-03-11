@@ -58,10 +58,11 @@ class ModelObjective(Objective):
 
 class Accuracy(ModelObjective):
     def __init__(
-        self, model: nn.Module, pruner: Pruner, val_data: Iterable, orig_acc: float
+        self, model: nn.Module, pruner: Pruner, weight: float, val_data: Iterable, orig_acc: float
     ) -> None:
         super().__init__(model, pruner)
 
+        self._weight = weight
         self._data = val_data
         self._orig_acc = orig_acc
 
@@ -71,7 +72,7 @@ class Accuracy(ModelObjective):
         accuracy = utils.evaluate(model, self._data, device)
         del model
 
-        return (accuracy / self._orig_acc,)
+        return (self._weight * accuracy / self._orig_acc,)
 
 
 class MacsPenalty(ModelObjective):
