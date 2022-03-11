@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Tuple
+from typing import Any, Callable, Dict, Tuple
 
 
 class Constraint(ABC):
@@ -36,10 +36,11 @@ class ChannelConstraint(Constraint):
 
 
 class LZeroNorm(Constraint):
-    def __init__(self, max_nonzero: int) -> None:
+    def __init__(self, left_operand: int, comparer: Callable[[int, int], bool]) -> None:
         super().__init__()
 
-        self._max_nonzero = max_nonzero
+        self._left_operand = left_operand
+        self._comparer = comparer
 
     def feasible(self, solution: Any) -> bool:
-        return sum(solution) <= self._max_nonzero
+        return self._comparer(sum(solution), self._left_operand)
