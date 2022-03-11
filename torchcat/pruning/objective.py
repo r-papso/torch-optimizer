@@ -52,6 +52,9 @@ class ModelObjective(Objective):
         model_cpy = self._pruner.prune(model_cpy, solution)
         return model_cpy
 
+    def _model_device(self, model: nn.Module) -> str:
+        return next(model.parameters()).device
+
 
 class Accuracy(ModelObjective):
     def __init__(
@@ -64,8 +67,10 @@ class Accuracy(ModelObjective):
 
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
         model = self._prune_model(solution)
-        accuracy = utils.evaluate(model, self._data)
+        device = self._model_device(model)
+        accuracy = utils.evaluate(model, self._data, device)
         del model
+
         return (accuracy / self._orig_acc,)
 
 
@@ -88,7 +93,7 @@ class MacsPenalty(ModelObjective):
 
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
         model = self._prune_model(solution)
-        device = next(model.parameters()).device
+        device = self._model_device(model)
         in_tensor = torch.randn(self._input_shape, device=device)
         macs, _ = profile(model, inputs=(in_tensor,), verbose=False)
         del model
@@ -136,7 +141,7 @@ class LatencyPenalty(ModelObjective):
         return (penalty_weighted,)
 
     def profile(self, model: nn.Module) -> List[float]:
-        device = next(model.parameters()).device
+        device = self._model_device(model)
         times = []
         model.eval()
 
@@ -172,7 +177,7 @@ class Macs(ModelObjective):
 
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
         model = self._prune_model(solution)
-        device = next(model.parameters()).device
+        device = self._model_device(model)
         in_tensor = torch.randn(self._in_shape, device=device)
         macs, _ = profile(model, inputs=(in_tensor,), verbose=False)
         del model
@@ -199,6 +204,8 @@ class LeakyAccuracy(ModelObjective):
 
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
         model = self._prune_model(solution)
-        accuracy = utils.evaluate(model, self._data)
+        device = self._model_device(model)
+        accuracy = utils.evaluate(model, self._data, device)
         del model
+
         return (min(self._a * (accuracy - self._t), self._b * (accuracy - self._t)),)
