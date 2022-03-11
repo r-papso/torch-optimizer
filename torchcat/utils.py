@@ -5,7 +5,7 @@ import ignite.metrics as metrics
 import torch
 import torch.nn as nn
 from ignite.engine import Engine, Events, create_supervised_evaluator, create_supervised_trainer
-from ignite.handlers import Checkpoint
+from ignite.handlers import Checkpoint, global_step_from_engine
 from ignite.handlers.param_scheduler import LRScheduler
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
@@ -40,8 +40,8 @@ def train(
     optimizer: Optimizer,
     loss_fn: nn.Module,
     epochs: int,
+    checkpoint_path: str = None,
     lr_scheduler: LRScheduler = None,
-    checkpoint: Checkpoint = None,
 ) -> dict:
     # Create metrics dict
     metric_dict = {}
@@ -66,6 +66,10 @@ def train(
 
     if lr_scheduler is not None:
         trainer.add_event_handler(Events.EPOCH_COMPLETED, lr_scheduler)
+
+    if checkpoint_path is not None:
+        checkpoint = _create_checkpoint(model, trainer, checkpoint_path)
+        evaluator.add_event_handler(Events.COMPLETED, checkpoint)
 
     if checkpoint is not None:
         evaluator.add_event_handler(Events.COMPLETED, checkpoint)
@@ -119,7 +123,20 @@ def _log_test(engine: Engine, evaluator: Engine, test_set: Iterable, metric_dict
     print(f"{time} - Epoch: {epoch:02d} Val accuracy: {acc:.4f} Val loss: {loss:.4f}")
 
 
-def _log_time(engine):
+def _log_time(engine: Engine) -> None:
     name = engine.last_event_name.name
     time = engine.state.times[name]
     print(f"{name} took {time:.4f} seconds")
+
+
+def _create_checkpoint(model: nn.Module, trainer: Engine, path: str) -> Checkpoint:
+    to_save = {"model": model}
+    return Checkpoint(
+        to_save,
+        path,
+        n_saved=1,
+        filename_prefix="best",
+        score_name="accuracy",
+        global_step_transform=global_step_from_engine(trainer),
+        greater_or_equal=True,
+    )
