@@ -122,7 +122,7 @@ def _log_test(engine: Engine, evaluator: Engine, test_set: Iterable, metric_dict
     time = datetime.now().strftime("%H:%M:%S")
 
     metric_dict[epoch].update({"test_acc": acc, "test_loss": loss})
-    print(f"{time} - Epoch: {epoch:04d} Test accuracy: {acc:.4f} Test loss: {loss:.4f}")
+    print(f"{time} - Epoch: {epoch:04d} Test accuracy:  {acc:.4f} Test loss:  {loss:.4f}")
 
 
 def _log_time(engine: Engine) -> None:
