@@ -70,9 +70,6 @@ def train(
         checkpoint = _create_checkpoint(model, trainer, checkpoint_path)
         evaluator.add_event_handler(Events.COMPLETED, checkpoint)
 
-    if checkpoint is not None:
-        evaluator.add_event_handler(Events.COMPLETED, checkpoint)
-
     trainer.run(train_set, max_epochs=epochs)
     return metric_dict
 
