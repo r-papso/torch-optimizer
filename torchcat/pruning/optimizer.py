@@ -74,10 +74,10 @@ class GAOptimizer(Optimizer):
         self._handle_generation(gen_num=0, obj=objective)
 
         for gen in range(1, self._n_gen + 1):
-            new_pop = list(map(tb.clone, self._elite_set(population)))
+            new_pop = list(map(tb.clone, self._elite_set(self._population)))
 
-            while len(new_pop) < len(population):
-                off1, off2 = self._crossover(population, tb)
+            while len(new_pop) < len(self._population):
+                off1, off2 = self._crossover(self._population, tb)
                 off1, off2 = self._mutation(off1, tb), self._mutation(off2, tb)
 
                 if constraint.feasible(off1):
@@ -86,7 +86,7 @@ class GAOptimizer(Optimizer):
                 if constraint.feasible(off2):
                     new_pop.append(off2)
 
-            population = new_pop
+            self._population = new_pop
             self._handle_generation(gen_num=gen, obj=objective)
 
         return self._best
