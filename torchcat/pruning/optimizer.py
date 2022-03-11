@@ -4,8 +4,8 @@ from datetime import datetime
 from typing import Any, Iterable, List, Tuple
 
 import numpy as np
-from deap import base, creator, tools
-from deap.base import Toolbox
+from deap import creator, tools
+from deap.base import Toolbox, Fitness
 
 from .constraint import Constraint
 from .objective import Objective
@@ -55,7 +55,10 @@ class GAOptimizer(Optimizer):
         self._history = None
 
     def optimize(self, objective: Objective, constraint: Constraint) -> Any:
-        creator.create("FitnessMax", base.Fitness, weights=(1.0,))
+        self.__obj = objective
+        self.__constr = constraint
+
+        creator.create("FitnessMax", Fitness, weights=(1.0,))
         creator.create("Individual", list, fitness=creator.FitnessMax)
 
         self._toolbox = self._create_toolbox()
@@ -91,10 +94,10 @@ class GAOptimizer(Optimizer):
     def history(self) -> Any:
         return self._history
 
-    def _handle_generation(self, gen_num: int, obj: Objective) -> None:
+    def _handle_generation(self, gen_num: int) -> None:
         # Evaluate population
         for individual in self._population:
-            individual.fitness.values = obj.evaluate(individual)
+            individual.fitness.values = self.__obj.evaluate(individual)
 
         # Keep current best found solution
         self._best = (
@@ -122,7 +125,7 @@ class GAOptimizer(Optimizer):
                 p = (i + 1) / pop_size
                 ind = ind_cls([random.random() <= p for _ in range(ind_size)])
 
-                if self._feasible(ind):
+                if self.__constr.feasible(ind):
                     pop.append(ind)
 
                 if len(pop) == pop_size:
@@ -155,8 +158,8 @@ class GAOptimizer(Optimizer):
     def _keep_best(self, curr_best: Any, population: Iterable[Any]) -> Any:
         return tools.selBest([curr_best] + tools.selBest(population, k=1), k=1)[0]
 
-    def _create_toolbox(self) -> base.Toolbox:
-        tb = base.Toolbox()
+    def _create_toolbox(self) -> Toolbox:
+        tb = Toolbox()
 
         tb.register("attr_bool", random.randint, 0, 1)
         tb.register("population", self._create_pop, creator.Individual, self._pop_size, self._indl)

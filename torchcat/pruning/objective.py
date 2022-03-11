@@ -54,16 +54,19 @@ class ModelObjective(Objective):
 
 
 class Accuracy(ModelObjective):
-    def __init__(self, model: nn.Module, pruner: Pruner, val_data: Iterable) -> None:
+    def __init__(
+        self, model: nn.Module, pruner: Pruner, val_data: Iterable, orig_acc: float
+    ) -> None:
         super().__init__(model, pruner)
 
         self._data = val_data
+        self._orig_acc = orig_acc
 
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
         model = self._prune_model(solution)
         accuracy = utils.evaluate(model, self._data)
         del model
-        return (accuracy,)
+        return (accuracy / self._orig_acc,)
 
 
 class MacsPenalty(ModelObjective):
