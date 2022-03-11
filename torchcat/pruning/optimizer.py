@@ -31,6 +31,7 @@ class GAOptimizer(Optimizer):
         mutp: float,
         mut_indp: float,
         cx_indp: float,
+        init_pop: Iterable[Any] = None,
         verbose: bool = True,
         verbose_freq: int = 1,
     ) -> None:
@@ -44,6 +45,7 @@ class GAOptimizer(Optimizer):
         self._mutp = mutp
         self._mut_indp = mut_indp
         self._cx_indp = cx_indp
+        self._init_pop = init_pop
         self._verbose = verbose
         self._verbose_freq = verbose_freq
 
@@ -70,7 +72,7 @@ class GAOptimizer(Optimizer):
         stats.register("min", np.min)
         stats.register("max", np.max)
 
-        self._population = tb.population()
+        self._population = tb.population() if self._init_pop is None else self._init_pop
         self._handle_generation(gen_num=0, obj=objective)
 
         for gen in range(1, self._n_gen + 1):
