@@ -51,36 +51,25 @@ class GAOptimizer(Optimizer):
 
         self._best = None
         self._population = None
+        self._toolbox = None
         self._history = None
 
     def optimize(self, objective: Objective, constraint: Constraint) -> Any:
         creator.create("FitnessMax", base.Fitness, weights=(1.0,))
         creator.create("Individual", list, fitness=creator.FitnessMax)
 
-        tb = base.Toolbox()
-
-        tb.register("attr_bool", random.randint, 0, 1)
-        tb.register("population", self._create_pop, creator.Individual, self._pop_size, self._indl)
-        tb.register("mate", tools.cxUniform, indpb=self._cx_indp)
-        tb.register("mutate", tools.mutFlipBit, indpb=self._mut_indp)
-        tb.register("select", tools.selTournament, tournsize=self._tourn_size)
-
+        self._toolbox = self._create_toolbox()
         self._history = tools.Logbook()
-        stats = tools.Statistics(key=lambda ind: ind.fitness.values)
-        stats.register("avg", np.mean)
-        stats.register("std", np.std)
-        stats.register("min", np.min)
-        stats.register("max", np.max)
 
-        self._population = tb.population() if self._init_pop is None else self._init_pop
+        self._population = self._toolbox.population() if self._init_pop is None else self._init_pop
         self._handle_generation(gen_num=0, obj=objective)
 
         for gen in range(1, self._n_gen + 1):
-            new_pop = list(map(tb.clone, self._elite_set(self._population)))
+            new_pop = list(map(self._toolbox.clone, self._elite_set(self._population)))
 
             while len(new_pop) < len(self._population):
-                off1, off2 = self._crossover(self._population, tb)
-                off1, off2 = self._mutation(off1, tb), self._mutation(off2, tb)
+                off1, off2 = self._crossover(self._population)
+                off1, off2 = self._mutation(off1), self._mutation(off2)
 
                 if constraint.feasible(off1):
                     new_pop.append(off1)
@@ -141,22 +130,23 @@ class GAOptimizer(Optimizer):
 
         return pop
 
-    def _crossover(self, population: Iterable[Any], toolbox: Toolbox) -> Tuple[Any]:
+    def _crossover(self, population: Iterable[Any]) -> Tuple[Any]:
         # Parent selection
-        p1, p2 = toolbox.select(population, 2)
-        off1, off2 = toolbox.clone(p1), toolbox.clone(p2)
+        p1, p2 = self._toolbox.select(population, 2)
+        off1, off2 = self._toolbox.clone(p1), self._toolbox.clone(p2)
 
         # Crossover
-        off1, off2 = toolbox.mate(off1, off2)
+        off1, off2 = self._toolbox.mate(off1, off2)
         del off1.fitness.values
         del off2.fitness.values
 
         return (off1, off2)
 
-    def _mutation(self, individual: Any, toolbox: Toolbox) -> Any:
+    def _mutation(self, individual: Any) -> Any:
         if random.random() <= self._mutp:
-            individual = toolbox.mutate(individual)[0]
+            individual = self._toolbox.mutate(individual)[0]
             del individual.fitness.values
+
         return individual
 
     def _elite_set(self, population: Iterable[Any]) -> List[Any]:
@@ -164,6 +154,17 @@ class GAOptimizer(Optimizer):
 
     def _keep_best(self, curr_best: Any, population: Iterable[Any]) -> Any:
         return tools.selBest([curr_best] + tools.selBest(population, k=1), k=1)[0]
+
+    def _create_toolbox(self) -> base.Toolbox:
+        tb = base.Toolbox()
+
+        tb.register("attr_bool", random.randint, 0, 1)
+        tb.register("population", self._create_pop, creator.Individual, self._pop_size, self._indl)
+        tb.register("mate", tools.cxUniform, indpb=self._cx_indp)
+        tb.register("mutate", tools.mutFlipBit, indpb=self._mut_indp)
+        tb.register("select", tools.selTournament, tournsize=self._tourn_size)
+
+        return tb
 
     def _create_stats(self) -> tools.Statistics:
         stats = tools.Statistics(key=lambda ind: ind.fitness.values)
