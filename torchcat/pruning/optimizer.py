@@ -23,7 +23,7 @@ class Optimizer(ABC):
 class GAOptimizer(Optimizer):
     def __init__(
         self,
-        ind_len: int,
+        ind_size: int,
         pop_size: int,
         elite_num: int,
         tourn_size: int,
@@ -37,7 +37,7 @@ class GAOptimizer(Optimizer):
     ) -> None:
         super().__init__()
 
-        self._indl = ind_len
+        self._ind_size = ind_size
         self._pop_size = pop_size
         self._elite_num = elite_num
         self._tourn_size = tourn_size
@@ -64,7 +64,11 @@ class GAOptimizer(Optimizer):
         self._toolbox = self._create_toolbox()
         self._history = tools.Logbook()
 
-        self._population = self._toolbox.population() if self._init_pop is None else self._init_pop
+        self._population = (
+            self._generate_pop(creator.Individual)
+            if self._init_pop is None
+            else self._initialize_pop(creator.Individual)
+        )
         self._handle_generation(gen_num=0)
 
         for gen in range(1, self._n_gen + 1):
@@ -117,21 +121,24 @@ class GAOptimizer(Optimizer):
             time = datetime.now().strftime("%H:%M:%S")
             print(f"{time} - Generation {gen_num:04d}: {stats_str}")
 
-    def _create_pop(self, ind_cls: Any, pop_size: int, ind_size: int) -> Iterable[Any]:
+    def _generate_pop(self, ind_cls: Any) -> Iterable[Any]:
         pop = []
 
-        while len(pop) < pop_size:
-            for i in range(pop_size):
-                p = (i + 1) / pop_size
-                ind = ind_cls([random.random() <= p for _ in range(ind_size)])
+        while len(pop) < self._pop_size:
+            for i in range(self._pop_size):
+                p = (i + 1) / self._pop_size
+                ind = ind_cls([random.random() <= p for _ in range(self._ind_size)])
 
                 if self.__constr.feasible(ind):
                     pop.append(ind)
 
-                if len(pop) == pop_size:
+                if len(pop) == self._pop_size:
                     break
 
         return pop
+
+    def _initialize_pop(self, ind_cls: Any) -> Iterable[Any]:
+        return [ind_cls(content) for content in self._init_pop]
 
     def _crossover(self, population: Iterable[Any]) -> Tuple[Any]:
         # Parent selection
@@ -162,7 +169,6 @@ class GAOptimizer(Optimizer):
         tb = Toolbox()
 
         tb.register("attr_bool", random.randint, 0, 1)
-        tb.register("population", self._create_pop, creator.Individual, self._pop_size, self._indl)
         tb.register("mate", tools.cxUniform, indpb=self._cx_indp)
         tb.register("mutate", tools.mutFlipBit, indpb=self._mut_indp)
         tb.register("select", tools.selTournament, tournsize=self._tourn_size)
