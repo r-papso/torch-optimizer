@@ -65,7 +65,7 @@ class GAOptimizer(Optimizer):
         self._history = tools.Logbook()
 
         self._population = self._toolbox.population() if self._init_pop is None else self._init_pop
-        self._handle_generation(gen_num=0, obj=objective)
+        self._handle_generation(gen_num=0)
 
         for gen in range(1, self._n_gen + 1):
             new_pop = list(map(self._toolbox.clone, self._elite_set(self._population)))
@@ -81,7 +81,7 @@ class GAOptimizer(Optimizer):
                     new_pop.append(off2)
 
             self._population = new_pop
-            self._handle_generation(gen_num=gen, obj=objective)
+            self._handle_generation(gen_num=gen)
 
         return self._best
 
