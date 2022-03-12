@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Callable, Iterable, Tuple
+from typing import Callable, Dict, Iterable, Tuple
 
 import ignite.metrics as metrics
 import torch
@@ -89,6 +89,19 @@ def evaluate(model: nn.Module, data: Iterable, device: str) -> float:
             correct += (pred == labels).sum().item()
 
     return correct / total
+
+
+def create_channel_map(model: nn.Module) -> Dict[str, Tuple[int, int]]:
+    cmap = {}
+    len = 0
+
+    for name, module in model.named_modules():
+        if isinstance(module, nn.Conv2d):
+            n_filters = module.weight.shape[0]
+            cmap[name] = (len, n_filters)
+            len += n_filters
+
+    return cmap
 
 
 def _custom_output_transform(x, y, y_pred, loss):
