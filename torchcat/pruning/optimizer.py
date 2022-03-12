@@ -110,10 +110,10 @@ class GAOptimizer(Optimizer):
             else tools.selBest(self._population, k=1)[0]
         )
 
-        # Compute statistics of current population
+        # Save statistics and state of current population
         stats = self._create_stats()
         record = stats.compile(self._population)
-        self._history.record(gen=gen_num, best=self._best, **record)
+        self._history.record(gen=gen_num, **record, best=self._best, pop=self._population)
 
         # Print statistcs to terminal
         if self._verbose and gen_num % self._verbose_freq == 0:
