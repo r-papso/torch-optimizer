@@ -1,4 +1,3 @@
-from copy import deepcopy
 import warnings
 from abc import ABC, abstractmethod
 from typing import Any, Iterable, List, Tuple
@@ -6,12 +5,12 @@ from typing import Any, Iterable, List, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
-from torch import Tensor
 from thop import profile
-
-from .pruner import Pruner
+from torch import Tensor
 
 from .. import utils
+from .cache import Cache
+from .pruner import Pruner
 
 warnings.simplefilter("ignore", UserWarning)
 
@@ -44,13 +43,7 @@ class ModelObjective(Objective):
     def __init__(self, model: nn.Module, pruner: Pruner) -> None:
         super().__init__()
 
-        self._model = model
-        self._pruner = pruner
-
-    def _prune_model(self, solution: Any) -> nn.Module:
-        model_cpy = deepcopy(self._model)
-        model_cpy = self._pruner.prune(model_cpy, solution)
-        return model_cpy
+        self._cache = Cache.get_cache(model, pruner)
 
     def _model_device(self, model: nn.Module) -> str:
         return next(model.parameters()).device
@@ -67,10 +60,9 @@ class Accuracy(ModelObjective):
         self._orig_acc = orig_acc
 
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
-        model = self._prune_model(solution)
+        model = self._cache.get_cached_model(solution)
         device = self._model_device(model)
         accuracy = utils.evaluate(model, self._data, device)
-        del model
 
         return (self._weight * accuracy / self._orig_acc,)
 
@@ -93,7 +85,7 @@ class MacsPenalty(ModelObjective):
         self._input_shape = in_shape
 
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
-        model = self._prune_model(solution)
+        model = self._cache.get_cached_model(solution)
         device = self._model_device(model)
         in_tensor = torch.randn(self._input_shape, device=device)
         macs, _ = profile(model, inputs=(in_tensor,), verbose=False)
@@ -128,7 +120,7 @@ class LatencyPenalty(ModelObjective):
         self._n_iters = n_iters
 
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
-        model = self._prune_model(solution)
+        model = self._cache.get_cached_model(solution)
         times = self.profile(model)
         avg_time = np.average(times)
         del model
@@ -177,7 +169,7 @@ class Macs(ModelObjective):
         self._in_shape = in_shape
 
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
-        model = self._prune_model(solution)
+        model = self._cache.get_cached_model(solution)
         device = self._model_device(model)
         in_tensor = torch.randn(self._in_shape, device=device)
         macs, _ = profile(model, inputs=(in_tensor,), verbose=False)
@@ -204,7 +196,7 @@ class LeakyAccuracy(ModelObjective):
         self._data = val_data
 
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
-        model = self._prune_model(solution)
+        model = self._cache.get_cached_model(solution)
         device = self._model_device(model)
         accuracy = utils.evaluate(model, self._data, device)
         del model

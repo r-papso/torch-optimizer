@@ -93,13 +93,13 @@ def evaluate(model: nn.Module, data: Iterable, device: str) -> float:
 
 def create_channel_map(model: nn.Module) -> Dict[str, Tuple[int, int]]:
     cmap = {}
-    len = 0
+    lenght = 0
 
     for name, module in model.named_modules():
         if isinstance(module, nn.Conv2d):
             n_filters = module.weight.shape[0]
-            cmap[name] = (len, n_filters)
-            len += n_filters
+            cmap[name] = (lenght, n_filters)
+            lenght += n_filters
 
     return cmap
 

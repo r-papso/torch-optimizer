@@ -1,5 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, Tuple
+from typing import Any, Callable
+
+from torch import nn
+
+from .cache import Cache
+from .pruner import Pruner
 
 
 class Constraint(ABC):
@@ -22,16 +27,19 @@ class ConstraintContainer(Constraint):
 
 
 class ChannelConstraint(Constraint):
-    def __init__(self, channel_map: Dict[str, Tuple[int, int]]) -> None:
+    def __init__(self, model: nn.Module, pruner: Pruner) -> None:
         super().__init__()
 
-        self._map = channel_map
+        self._cache = Cache.get_cache(model, pruner)
 
     def feasible(self, solution: Any) -> bool:
-        for start, lenght in self._map.values():
-            if not any(solution[start : start + lenght]):
-                return False
+        model = self._cache.get_cached_model(solution)
 
+        for module in model.modules():
+            weight = getattr(module, "weight", None)
+            if weight is not None and any(dim <= 0 for dim in weight.shape):
+                return False
+        
         return True
 
 
