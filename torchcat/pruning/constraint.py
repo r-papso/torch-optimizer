@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from copy import deepcopy
 from typing import Any, Callable
 
 from torch import nn
@@ -30,17 +31,24 @@ class ChannelConstraint(Constraint):
     def __init__(self, model: nn.Module, pruner: Pruner) -> None:
         super().__init__()
 
+        self._pruner = pruner
+        self._model = model
         self._cache = Cache.get_cache(model, pruner)
 
     def feasible(self, solution: Any) -> bool:
-        model = self._cache.get_cached_model(solution)
+        # model = self._cache.get_cached_model(solution)
+        model_cpy = deepcopy(self._model)
+        model_cpy = self._pruner.prune(model_cpy, solution)
+        result = True
 
-        for module in model.modules():
+        for module in model_cpy.modules():
             weight = getattr(module, "weight", None)
             if weight is not None and any(dim <= 0 for dim in weight.shape):
-                return False
-        
-        return True
+                result = False
+                break
+
+        del model_cpy
+        return result
 
 
 class LZeroNorm(Constraint):
