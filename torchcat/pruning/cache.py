@@ -31,7 +31,9 @@ class Cache:
             return self._cached_model[1]
 
         if self._cached_model is not None:
-            del self._cached_model[1]
+            cached_model = self._cached_model[1]
+            self._cached_model = None
+            del cached_model
 
         model_cpy = deepcopy(self._model)
         model_cpy = self._pruner.prune(model_cpy, solution)
