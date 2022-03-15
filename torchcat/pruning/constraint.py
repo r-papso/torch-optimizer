@@ -3,7 +3,7 @@ from typing import Any, Callable
 
 from torch import nn
 
-from .utils import prune_model
+from .cache import Cache
 from .pruner import Pruner
 
 
@@ -32,9 +32,10 @@ class ChannelConstraint(Constraint):
 
         self._pruner = pruner
         self._model = model
+        self._cache = Cache.get_cache(model, pruner)
 
     def feasible(self, solution: Any) -> bool:
-        model = prune_model(self._model, self._pruner, solution)
+        model = self._cache.get_cached_model(solution)
         result = True
 
         for module in model.modules():
@@ -43,7 +44,6 @@ class ChannelConstraint(Constraint):
                 result = False
                 break
 
-        del model
         return result
 
 

@@ -9,7 +9,7 @@ from thop import profile
 from torch import Tensor
 
 from .. import utils
-from .utils import prune_model
+from .cache import Cache
 from .pruner import Pruner
 
 warnings.simplefilter("ignore", UserWarning)
@@ -45,12 +45,13 @@ class ModelObjective(Objective):
 
         self._model = model
         self._pruner = pruner
+        self._cache = Cache.get_cache(model, pruner)
 
     def _model_device(self, model: nn.Module) -> str:
         return next(model.parameters()).device
 
     def _get_pruned_model(self, solution: Any) -> nn.Module:
-        return prune_model(self._model, self._pruner, solution)
+        return self._cache.get_cached_model(solution)
 
 
 class Accuracy(ModelObjective):
@@ -67,7 +68,6 @@ class Accuracy(ModelObjective):
         model = self._get_pruned_model(solution)
         device = self._model_device(model)
         accuracy = utils.evaluate(model, self._data, device)
-        del model
 
         return (self._weight * accuracy / self._orig_acc,)
 
@@ -94,7 +94,6 @@ class MacsPenalty(ModelObjective):
         device = self._model_device(model)
         in_tensor = torch.randn(self._input_shape, device=device)
         macs, _ = profile(model, inputs=(in_tensor,), verbose=False)
-        del model
 
         # To scale the penalty to [0, 1], we need to divide current penalty by maximum possible
         # penalty, i. e.: max(0, macs - orig_macs * p) / (orig_macs - orig_macs * p).
@@ -128,7 +127,6 @@ class LatencyPenalty(ModelObjective):
         model = self._get_pruned_model(solution)
         times = self.profile(model)
         avg_time = np.average(times)
-        del model
 
         # To scale the penalty to [0, 1], we need to divide current penalty by maximum possible
         # penalty, i. e.: max(0, time - orig_time * p) / (orig_time - orig_time * p).
@@ -178,7 +176,6 @@ class Macs(ModelObjective):
         device = self._model_device(model)
         in_tensor = torch.randn(self._in_shape, device=device)
         macs, _ = profile(model, inputs=(in_tensor,), verbose=False)
-        del model
 
         return (self._weight * (1.0 - macs / self._orig_macs),)
 
@@ -204,7 +201,6 @@ class LeakyAccuracy(ModelObjective):
         model = self._get_pruned_model(solution)
         device = self._model_device(model)
         accuracy = utils.evaluate(model, self._data, device)
-        del model
 
         return (min(self._a * (accuracy - self._t), self._b * (accuracy - self._t)),)
 
@@ -230,7 +226,6 @@ class PrunedRatioPenalty(ModelObjective):
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
         model = self._get_pruned_model(solution)
         nparams = self._compute_nparams(model) / self._orig_nparams
-        del model
 
         if nparams < self._lbound:
             return (self._weight * (self._lbound - nparams),)
