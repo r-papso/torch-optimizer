@@ -9,7 +9,7 @@ from thop import profile
 from torch import Tensor
 
 from .. import utils
-from .cache import Cache
+from .utils import prune_model
 from .pruner import Pruner
 
 warnings.simplefilter("ignore", UserWarning)
@@ -43,10 +43,14 @@ class ModelObjective(Objective):
     def __init__(self, model: nn.Module, pruner: Pruner) -> None:
         super().__init__()
 
-        self._cache = Cache.get_cache(model, pruner)
+        self._model = model
+        self._pruner = pruner
 
     def _model_device(self, model: nn.Module) -> str:
         return next(model.parameters()).device
+
+    def _get_pruned_model(self, solution: Any) -> nn.Module:
+        return prune_model(self._model, self._pruner, solution)
 
 
 class Accuracy(ModelObjective):
@@ -60,9 +64,10 @@ class Accuracy(ModelObjective):
         self._orig_acc = orig_acc
 
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
-        model = self._cache.get_cached_model(solution)
+        model = self._get_pruned_model(solution)
         device = self._model_device(model)
         accuracy = utils.evaluate(model, self._data, device)
+        del model
 
         return (self._weight * accuracy / self._orig_acc,)
 
@@ -85,7 +90,7 @@ class MacsPenalty(ModelObjective):
         self._input_shape = in_shape
 
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
-        model = self._cache.get_cached_model(solution)
+        model = self._get_pruned_model(solution)
         device = self._model_device(model)
         in_tensor = torch.randn(self._input_shape, device=device)
         macs, _ = profile(model, inputs=(in_tensor,), verbose=False)
@@ -120,7 +125,7 @@ class LatencyPenalty(ModelObjective):
         self._n_iters = n_iters
 
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
-        model = self._cache.get_cached_model(solution)
+        model = self._get_pruned_model(solution)
         times = self.profile(model)
         avg_time = np.average(times)
         del model
@@ -169,7 +174,7 @@ class Macs(ModelObjective):
         self._in_shape = in_shape
 
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
-        model = self._cache.get_cached_model(solution)
+        model = self._get_pruned_model(solution)
         device = self._model_device(model)
         in_tensor = torch.randn(self._in_shape, device=device)
         macs, _ = profile(model, inputs=(in_tensor,), verbose=False)
@@ -196,9 +201,43 @@ class LeakyAccuracy(ModelObjective):
         self._data = val_data
 
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
-        model = self._cache.get_cached_model(solution)
+        model = self._get_pruned_model(solution)
         device = self._model_device(model)
         accuracy = utils.evaluate(model, self._data, device)
         del model
 
         return (min(self._a * (accuracy - self._t), self._b * (accuracy - self._t)),)
+
+
+class PrunedRatioPenalty(ModelObjective):
+    def __init__(
+        self,
+        model: nn.Module,
+        pruner: Pruner,
+        module_names: Iterable[str],
+        weight: float,
+        lower_bound: float,
+        upper_bound: float,
+    ) -> None:
+        super().__init__(model, pruner)
+
+        self._names = module_names
+        self._weight = weight
+        self._lbound = lower_bound
+        self._ubound = upper_bound
+        self._orig_nparams = self._compute_nparams(self._model)
+
+    def evaluate(self, solution: Any) -> Tuple[float, ...]:
+        model = self._get_pruned_model(solution)
+        nparams = self._compute_nparams(model)
+        del model
+
+        if nparams < self._lbound:
+            return (self._weight * (self._lbound - nparams),)
+        elif nparams > self._ubound:
+            return (self._weight * (nparams - self._ubound),)
+        else:
+            return (0.0,)
+
+    def _compute_nparams(self, model: nn.Module) -> int:
+        return sum([model.get_submodule(name).weight.data.numel() for name in self._names])
