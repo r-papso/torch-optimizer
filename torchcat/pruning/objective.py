@@ -229,7 +229,7 @@ class PrunedRatioPenalty(ModelObjective):
 
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
         model = self._get_pruned_model(solution)
-        nparams = self._compute_nparams(model)
+        nparams = self._compute_nparams(model) / self._orig_nparams
         del model
 
         if nparams < self._lbound:
