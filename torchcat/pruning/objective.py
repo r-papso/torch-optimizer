@@ -1,11 +1,11 @@
 import warnings
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Iterable, List, Tuple
+from typing import Any, Iterable, List, Tuple
 
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.optim import Optimizer
+from torch.optim import SGD
 from thop import profile
 from torch import Tensor
 
@@ -247,8 +247,6 @@ class AccuracyFinetuned(ModelObjective):
         weight: float,
         train_data: Iterable,
         val_data: Iterable,
-        optimizer: Optimizer,
-        loss_fn: Callable,
         iterations: int,
         orig_acc: float,
     ) -> None:
@@ -257,15 +255,17 @@ class AccuracyFinetuned(ModelObjective):
         self._weight = weight
         self._train = train_data
         self._val = val_data
-        self._optim = optimizer
-        self._loss_fn = loss_fn
         self._iters = iterations
         self._orig_acc = orig_acc
 
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
         model = self._get_pruned_model(solution)
         device = self._model_device(model)
-        model = utils.train(model, self._train, device, self._optim, self._loss_fn, self._iters)
+
+        optim = SGD(model.parameters(), lr=0.01, momentum=0.9)
+        loss_fn = nn.CrossEntropyLoss()
+
+        model = utils.train(model, self._train, device, optim, loss_fn, self._iters)
         accuracy = utils.evaluate(model, self._val, device)
 
         return (self._weight * accuracy / self._orig_acc,)
