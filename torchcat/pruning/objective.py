@@ -262,7 +262,7 @@ class AccuracyFinetuned(ModelObjective):
         model = self._get_pruned_model(solution)
         device = self._model_device(model)
 
-        optim = SGD(model.parameters(), lr=0.01, momentum=0.9)
+        optim = SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=0.0001)
         loss_fn = nn.CrossEntropyLoss()
 
         model = utils.train(model, self._train, device, optim, loss_fn, self._iters)
