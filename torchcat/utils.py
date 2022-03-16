@@ -94,6 +94,7 @@ def train(
             if labels.device != device:
                 labels = labels.to(device)
 
+            optimizer.zero_grad()
             outputs = model(inputs)
             loss = loss_fn(outputs, labels)
             loss.backward()
