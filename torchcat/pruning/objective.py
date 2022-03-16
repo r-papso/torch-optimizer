@@ -1,10 +1,11 @@
 import warnings
 from abc import ABC, abstractmethod
-from typing import Any, Iterable, List, Tuple
+from typing import Any, Callable, Iterable, List, Tuple
 
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.optim import Optimizer
 from thop import profile
 from torch import Tensor
 
@@ -236,3 +237,35 @@ class PrunedRatioPenalty(ModelObjective):
 
     def _compute_nparams(self, model: nn.Module) -> int:
         return sum([model.get_submodule(name).weight.data.numel() for name in self._names])
+
+
+class AccuracyFinetuned(ModelObjective):
+    def __init__(
+        self,
+        model: nn.Module,
+        pruner: Pruner,
+        weight: float,
+        train_data: Iterable,
+        val_data: Iterable,
+        optimizer: Optimizer,
+        loss_fn: Callable,
+        iterations: int,
+        orig_acc: float,
+    ) -> None:
+        super().__init__(model, pruner)
+
+        self._weight = weight
+        self._train = train_data
+        self._val = val_data
+        self._optim = optimizer
+        self._loss_fn = loss_fn
+        self._iters = iterations
+        self._orig_acc = orig_acc
+
+    def evaluate(self, solution: Any) -> Tuple[float, ...]:
+        model = self._get_pruned_model(solution)
+        device = self._model_device(model)
+        model = utils.train(model, self._train, device, self._optim, self._loss_fn, self._iters)
+        accuracy = utils.evaluate(model, self._val, device)
+
+        return (self._weight * accuracy / self._orig_acc,)

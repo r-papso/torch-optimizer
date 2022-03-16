@@ -4,6 +4,7 @@ from typing import Callable, Dict, Iterable, Tuple
 import ignite.metrics as metrics
 import torch
 import torch.nn as nn
+from torch import Tensor
 from ignite.engine import Engine, Events, create_supervised_evaluator, create_supervised_trainer
 from ignite.handlers import Checkpoint, global_step_from_engine
 from ignite.handlers.param_scheduler import LRScheduler
@@ -33,12 +34,12 @@ def cifar10_loaders(
     return train_loader, val_loader, test_loader
 
 
-def train(
+def train_ignite(
     model: nn.Module,
-    train_set: Iterable,
-    test_set: Iterable,
+    train_set: Iterable[Tuple[Tensor, Tensor]],
+    test_set: Iterable[Tuple[Tensor, Tensor]],
     optimizer: Optimizer,
-    loss_fn: nn.Module,
+    loss_fn: Callable,
     epochs: int,
     checkpoint_path: str = None,
     lr_scheduler: LRScheduler = None,
@@ -74,14 +75,48 @@ def train(
     return metric_dict
 
 
-def evaluate(model: nn.Module, data: Iterable, device: str) -> float:
-    model.eval()
+def train(
+    model: nn.Module,
+    data: Iterable[Tuple[Tensor, Tensor]],
+    device: str,
+    optimizer: Optimizer,
+    loss_fn: Callable,
+    iterations: int,
+) -> nn.Module:
+    model = model.train().to(device)
+    iters = 0
+
+    while iters < iterations:
+        for inputs, labels in data:
+            if inputs.device != device:
+                inputs = inputs.to(device)
+
+            if labels.device != device:
+                labels = labels.to(device)
+
+            outputs = model(inputs)
+            loss = loss_fn(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            iters += 1
+            if iters == iterations:
+                break
+
+    return model
+
+
+def evaluate(model: nn.Module, data: Iterable[Tuple[Tensor, Tensor]], device: str) -> float:
+    model = model.eval().to(device)
     correct, total = 0, 0
 
     with torch.no_grad():
         for inputs, labels in data:
-            inputs = inputs.to(device)
-            labels = labels.to(device)
+            if inputs.device != device:
+                inputs = inputs.to(device)
+
+            if labels.device != device:
+                labels = labels.to(device)
 
             outputs = model(inputs)
             _, pred = torch.max(outputs.data, 1)
