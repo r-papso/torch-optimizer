@@ -101,7 +101,8 @@ class GAOptimizer(Optimizer):
     def _handle_generation(self, gen_num: int) -> None:
         # Evaluate population
         for individual in self._population:
-            individual.fitness.values = self.__obj.evaluate(individual)
+            if not individual.fitness.values:
+                individual.fitness.values = self.__obj.evaluate(individual)
 
         # Keep current best found solution
         self._best = (
