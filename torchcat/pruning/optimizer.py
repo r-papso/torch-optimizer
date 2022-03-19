@@ -78,6 +78,7 @@ class GAOptimizer(Optimizer):
         return self._history
 
     def _optimize(self, objective: Objective, constraint: Constraint) -> Any:
+        self._best = None
         self._toolbox = self._define_operations()
         self._history = tools.Logbook()
 
