@@ -16,7 +16,11 @@ class Optimizer(ABC):
         pass
 
     @abstractmethod
-    def optimize(self, objective: Objective, constraint: Constraint) -> Any:
+    def minimize(self, objective: Objective, constraint: Constraint) -> Any:
+        pass
+
+    @abstractmethod
+    def maximize(self, objective: Objective, constraint: Constraint) -> Any:
         pass
 
 
@@ -33,7 +37,6 @@ class GAOptimizer(Optimizer):
         cx_indp: float,
         init_pop: Iterable[Any] = None,
         verbose: bool = True,
-        verbose_freq: int = 1,
     ) -> None:
         super().__init__()
 
@@ -47,29 +50,43 @@ class GAOptimizer(Optimizer):
         self._cx_indp = cx_indp
         self._init_pop = init_pop
         self._verbose = verbose
-        self._verbose_freq = verbose_freq
 
         self._best = None
         self._population = None
         self._toolbox = None
         self._history = None
 
-    def optimize(self, objective: Objective, constraint: Constraint) -> Any:
-        self.__obj = objective
-        self.__constr = constraint
+    def minimize(self, objective: Objective, constraint: Constraint) -> Any:
+        creator.create("FitnessMin", Fitness, weights=(-1.0,))
+        creator.create("Individual", list, fitness=creator.FitnessMin)
 
+        self._optimize(objective, constraint)
+
+    def maximize(self, objective: Objective, constraint: Constraint) -> Any:
         creator.create("FitnessMax", Fitness, weights=(1.0,))
         creator.create("Individual", list, fitness=creator.FitnessMax)
 
-        self._toolbox = self._create_toolbox()
+        self._optimize(objective, constraint)
+
+    def best(self) -> Any:
+        return self._best
+
+    def population(self) -> Iterable[Any]:
+        return self._population
+
+    def history(self) -> Any:
+        return self._history
+
+    def _optimize(self, objective: Objective, constraint: Constraint) -> Any:
+        self._toolbox = self._define_operations()
         self._history = tools.Logbook()
 
         self._population = (
-            self._generate_pop(creator.Individual)
+            self._generate_population(creator.Individual, constraint)
             if self._init_pop is None
-            else self._initialize_pop(creator.Individual)
+            else self._init_population(creator.Individual)
         )
-        self._handle_generation(gen_num=0)
+        self._handle_generation(0, objective)
 
         for gen in range(1, self._n_gen + 1):
             new_pop = list(map(self._toolbox.clone, self._elite_set(self._population)))
@@ -85,24 +102,15 @@ class GAOptimizer(Optimizer):
                     new_pop.append(off2)
 
             self._population = new_pop
-            self._handle_generation(gen_num=gen)
+            self._handle_generation(gen, objective)
 
         return self._best
 
-    def best(self) -> Any:
-        return self._best
-
-    def population(self) -> Iterable[Any]:
-        return self._population
-
-    def history(self) -> Any:
-        return self._history
-
-    def _handle_generation(self, gen_num: int) -> None:
+    def _handle_generation(self, gen_num: int, objective: Objective) -> None:
         # Evaluate population
         for individual in self._population:
             if not individual.fitness.values:
-                individual.fitness.values = self.__obj.evaluate(individual)
+                individual.fitness.values = objective.evaluate(individual)
 
         # Keep current best found solution
         self._best = (
@@ -117,28 +125,12 @@ class GAOptimizer(Optimizer):
         self._history.record(gen=gen_num, **record, best=self._best, pop=self._population)
 
         # Print statistcs to terminal
-        if self._verbose and gen_num % self._verbose_freq == 0:
+        if self._verbose:
             stats_str = ", ".join([f"{k.capitalize()} = {v:.4f}" for k, v in record.items()])
             time = datetime.now().strftime("%H:%M:%S")
             print(f"{time} - Generation {gen_num:04d}: {stats_str}")
 
-    def _generate_pop(self, ind_cls: Any) -> Iterable[Any]:
-        pop = []
-
-        while len(pop) < self._pop_size:
-            for i in range(self._pop_size):
-                p = (i + 1) / self._pop_size
-                ind = ind_cls([random.random() <= p for _ in range(self._ind_size)])
-
-                if self.__constr.feasible(ind):
-                    pop.append(ind)
-
-                if len(pop) == self._pop_size:
-                    break
-
-        return pop
-
-    def _initialize_pop(self, ind_cls: Any) -> Iterable[Any]:
+    def _init_population(self, ind_cls: Any) -> Iterable[Any]:
         return [ind_cls(content) for content in self._init_pop]
 
     def _crossover(self, population: Iterable[Any]) -> Tuple[Any]:
@@ -166,20 +158,127 @@ class GAOptimizer(Optimizer):
     def _keep_best(self, curr_best: Any, population: Iterable[Any]) -> Any:
         return tools.selBest([curr_best] + tools.selBest(population, k=1), k=1)[0]
 
-    def _create_toolbox(self) -> Toolbox:
+    def _create_stats(self) -> tools.Statistics:
+        stats = tools.Statistics(key=lambda ind: ind.fitness.values)
+
+        stats.register("avg", np.mean)
+        stats.register("std", np.std)
+        stats.register("min", np.min)
+        stats.register("max", np.max)
+
+        return stats
+
+    @abstractmethod
+    def _define_operations(self) -> Toolbox:
+        pass
+
+    @abstractmethod
+    def _generate_population(self, ind_cls: type, constraint: Constraint) -> Iterable[Any]:
+        pass
+
+
+class BinaryGAOptimizer(GAOptimizer):
+    def __init__(
+        self,
+        ind_size: int,
+        pop_size: int,
+        elite_num: int,
+        tourn_size: int,
+        n_gen: int,
+        mutp: float,
+        mut_indp: float,
+        cx_indp: float,
+        init_pop: Iterable[Any] = None,
+        verbose: bool = True,
+    ) -> None:
+        super().__init__(
+            ind_size,
+            pop_size,
+            elite_num,
+            tourn_size,
+            n_gen,
+            mutp,
+            mut_indp,
+            cx_indp,
+            init_pop,
+            verbose,
+        )
+
+    def _define_operations(self) -> Toolbox:
         tb = Toolbox()
 
-        tb.register("attr_bool", random.randint, 0, 1)
         tb.register("mate", tools.cxUniform, indpb=self._cx_indp)
         tb.register("mutate", tools.mutFlipBit, indpb=self._mut_indp)
         tb.register("select", tools.selTournament, tournsize=self._tourn_size)
 
         return tb
 
-    def _create_stats(self) -> tools.Statistics:
-        stats = tools.Statistics(key=lambda ind: ind.fitness.values)
-        stats.register("avg", np.mean)
-        stats.register("std", np.std)
-        stats.register("min", np.min)
-        stats.register("max", np.max)
-        return stats
+    def _generate_population(self, ind_cls: type, constraint: Constraint) -> Iterable[Any]:
+        pop = []
+
+        while len(pop) < self._pop_size:
+            for i in range(self._pop_size):
+                p = (i + 1) / self._pop_size
+                ind = ind_cls([random.random() <= p for _ in range(self._ind_size)])
+
+                if constraint.feasible(ind):
+                    pop.append(ind)
+
+                if len(pop) == self._pop_size:
+                    break
+
+        return pop
+
+
+class IntegerGAOptimizer(GAOptimizer):
+    def __init__(
+        self,
+        ind_size: int,
+        pop_size: int,
+        elite_num: int,
+        tourn_size: int,
+        n_gen: int,
+        mutp: float,
+        mut_indp: float,
+        cx_indp: float,
+        bounds: Iterable[Tuple[int, int]],
+        init_pop: Iterable[Any] = None,
+        verbose: bool = True,
+    ) -> None:
+        super().__init__(
+            ind_size,
+            pop_size,
+            elite_num,
+            tourn_size,
+            n_gen,
+            mutp,
+            mut_indp,
+            cx_indp,
+            init_pop,
+            verbose,
+        )
+
+        self._bounds = bounds
+
+    def _define_operations(self) -> Toolbox:
+        tb = Toolbox()
+
+        lbounds = [t[0] for t in self._bounds]
+        ubounds = [t[1] for t in self._bounds]
+
+        tb.register("mate", tools.cxUniform, indpb=self._cx_indp)
+        tb.register("mutate", tools.mutUniformInt, low=lbounds, up=ubounds, indpb=self._mut_indp)
+        tb.register("select", tools.selTournament, tournsize=self._tourn_size)
+
+        return tb
+
+    def _generate_population(self, ind_cls: type, constraint: Constraint) -> Iterable[Any]:
+        pop = []
+
+        while len(pop) < self._pop_size:
+            ind = ind_cls([random.randint(low, up) for low, up in self._bounds])
+
+            if constraint.feasible(ind):
+                pop.append(ind)
+
+        return pop

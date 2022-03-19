@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from typing import Any, Dict, Iterable, Tuple
+from typing import Any, Iterable, Tuple
 
 import torch
 import torch.nn as nn
@@ -72,35 +72,53 @@ class ResnetModulePruner(ModulePruner):
 
 
 class ChannelPruner(Pruner):
-    def __init__(
-        self, channel_map: Dict[str, Tuple[int, int]], input_shape: Tuple[int, ...],
-    ) -> None:
+    def __init__(self, module_names: Iterable[str], input_shape: Tuple[int, ...],) -> None:
         super().__init__()
 
-        self._channel_map = channel_map
         self._input_shape = input_shape
+        self._names = module_names
 
     def prune(self, model: nn.Module, mask: Any) -> nn.Module:
-        assert len(mask) == sum(
-            v[1] for v in self._channel_map.values()
-        ), "Mask's length must be equal to number of channels in channel_map"
-
         device = next(model.parameters()).device
         example_input = torch.randn(self._input_shape, device=device)
         DG = tp.DependencyGraph()
         DG = DG.build_dependency(model, example_inputs=example_input)
 
-        for module_name, (start, lenght) in self._channel_map.items():
-            module_mask = mask[start : start + lenght]
-
-            if not all(module_mask):
-                module = model.get_submodule(module_name)
+        for name, idxs in zip(self._names, self._get_indexes(model, mask)):
+            if len(idxs) > 0:
+                module = model.get_submodule(name)
                 optype = _get_module_type(module)
 
                 pruning_func = tp.DependencyGraph.HANDLER[optype][1]
-                pruning_idxs = [i for i in range(len(module_mask)) if not module_mask[i]]
-                pruning_plan = DG.get_pruning_plan(module, pruning_func, pruning_idxs)
+                pruning_plan = DG.get_pruning_plan(module, pruning_func, idxs)
 
                 _ = pruning_plan.exec()
 
         return model
+
+    def _get_indexes(self, model: nn.Module, mask: Any) -> Iterable[Iterable[int]]:
+        result = []
+
+        # Binary mask
+        if all(x in [0, 1] for x in mask):
+            length = 0
+
+            for name in self._names:
+                w_length = len(model.get_submodule(name).weight)
+                module_mask = mask[length : length + w_length]
+                idxs = [i for i in range(len(module_mask)) if not module_mask[i]]
+                result.append(idxs)
+                length += w_length
+
+        # Integer mask
+        elif all(isinstance(x, int) for x in mask):
+            for name, amount in zip(self._names, mask):
+                strategy = tp.strategy.L1Strategy()
+                idxs = strategy(model.get_submodule(name).weight, amount=amount)
+                result.append(idxs)
+
+        # Unknown mask type
+        else:
+            raise ValueError("Invalid mask type")
+
+        return result
