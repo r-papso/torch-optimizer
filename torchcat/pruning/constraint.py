@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
+from copy import deepcopy
 from typing import Any, Callable
 
 from torch import nn
 
-from .cache import Cache
 from .pruner import Pruner
 
 
@@ -32,10 +32,10 @@ class ChannelConstraint(Constraint):
 
         self._pruner = pruner
         self._model = model
-        self._cache = Cache.get_cache(model, pruner)
 
     def feasible(self, solution: Any) -> bool:
-        model = self._cache.get_cached_model(solution)
+        model = deepcopy(self._model)
+        model = self._pruner.prune(model, solution)
         result = True
 
         for module in model.modules():
@@ -44,6 +44,7 @@ class ChannelConstraint(Constraint):
                 result = False
                 break
 
+        del model
         return result
 
 
