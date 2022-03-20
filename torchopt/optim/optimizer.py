@@ -6,8 +6,8 @@ from typing import Any, Iterable, List, Tuple
 import numpy as np
 from deap import creator, tools
 from deap.base import Fitness, Toolbox
-from numpy.random import triangular
 
+from . import utils
 from .constraint import Constraint
 from .objective import Objective
 
@@ -293,7 +293,7 @@ class IntegerGAOptimizer(GAOptimizer):
         ubounds = [t[1] for t in self._bounds]
 
         tb.register("mate", tools.cxUniform, indpb=self._cx_indp)
-        tb.register("mutate", tools.mutUniformInt, low=lbounds, up=ubounds, indpb=self._mut_indp)
+        tb.register("mutate", utils.mut_triangular, low=lbounds, up=ubounds, indpb=self._mut_indp)
         tb.register("select", tools.selTournament, tournsize=self._tourn_size)
 
         return tb
@@ -312,7 +312,7 @@ class IntegerGAOptimizer(GAOptimizer):
                     left = max(low, mode - 0.1 * size)
                     right = min(up, mode + 0.1 * size)
 
-                    ind_content.append(int(triangular(left, mode, right, size=1).item()))
+                    ind_content.append(int(random.triangular(left, right, mode)))
 
                 ind = ind_cls(ind_content)
 
