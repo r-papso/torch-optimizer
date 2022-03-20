@@ -120,7 +120,10 @@ class GAOptimizer(Optimizer):
 
             # No improvement has been made, early stopping the optimization
             if no_improve == self._early_stop:
-                print(f"No improvement has been made in {no_improve} generations, early stopping")
+                time = datetime.now().strftime("%H:%M:%S")
+                print(
+                    f"{time} - No improvement has been made in {no_improve} generations, early stopping"
+                )
                 break
 
         return self._best
