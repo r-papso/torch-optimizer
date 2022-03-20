@@ -4,7 +4,7 @@ from typing import Any, Callable
 
 from torch import nn
 
-from .pruner import Pruner
+from ..prune.pruner import Pruner
 
 
 class Constraint(ABC):
@@ -46,14 +46,3 @@ class ChannelConstraint(Constraint):
 
         del model
         return result
-
-
-class LZeroNorm(Constraint):
-    def __init__(self, left_operand: int, comparer: Callable[[int, int], bool]) -> None:
-        super().__init__()
-
-        self._left_operand = left_operand
-        self._comparer = comparer
-
-    def feasible(self, solution: Any) -> bool:
-        return self._comparer(sum(solution), self._left_operand)

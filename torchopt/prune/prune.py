@@ -1,7 +1,7 @@
+from typing import Iterable, Tuple
+
 import numpy as np
 import torch
-
-from typing import Iterable, Tuple
 from torch import nn
 
 from .scoring import Scoring

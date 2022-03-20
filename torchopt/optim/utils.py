@@ -2,7 +2,7 @@ from copy import deepcopy
 from typing import Any
 from torch import nn
 
-from .pruner import Pruner
+from ..prune.pruner import Pruner
 
 
 def prune_model(model: nn.Module, pruner: Pruner, mask: Any) -> nn.Module:

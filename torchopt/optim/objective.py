@@ -1,4 +1,3 @@
-from copy import deepcopy
 import warnings
 from abc import ABC, abstractmethod
 from typing import Any, Iterable, List, Tuple
@@ -6,12 +5,12 @@ from typing import Any, Iterable, List, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.optim import SGD
 from thop import profile
-from torch import Tensor
+from torch.optim import SGD
 
 from .. import utils
-from .pruner import Pruner
+from ..prune.pruner import Pruner
+from .utils import prune_model
 
 warnings.simplefilter("ignore", UserWarning)
 
@@ -51,9 +50,7 @@ class ModelObjective(Objective):
         return next(model.parameters()).device
 
     def _get_pruned_model(self, solution: Any) -> nn.Module:
-        model_cpy = deepcopy(self._model)
-        model_cpy = self._pruner.prune(model_cpy, solution)
-        return model_cpy
+        return prune_model(self._model, self._pruner, solution)
 
 
 class Accuracy(ModelObjective):
@@ -184,32 +181,6 @@ class Macs(ModelObjective):
 
         del model
         return (self._weight * (1.0 - macs / self._orig_macs),)
-
-
-class LeakyAccuracy(ModelObjective):
-    def __init__(
-        self,
-        model: nn.Module,
-        pruner: Pruner,
-        a: float,
-        b: float,
-        t: float,
-        val_data: Iterable[Tuple[Tensor, Tensor]],
-    ) -> None:
-        super().__init__(model, pruner)
-
-        self._a = a
-        self._b = b
-        self._t = t
-        self._data = val_data
-
-    def evaluate(self, solution: Any) -> Tuple[float, ...]:
-        model = self._get_pruned_model(solution)
-        device = self._model_device(model)
-        accuracy = utils.evaluate(model, self._data, device)
-
-        del model
-        return (min(self._a * (accuracy - self._t), self._b * (accuracy - self._t)),)
 
 
 class PrunedRatioPenalty(ModelObjective):
