@@ -4,9 +4,9 @@ from datetime import datetime
 from typing import Any, Iterable, List, Tuple
 
 import numpy as np
-from numpy.random import triangular
 from deap import creator, tools
-from deap.base import Toolbox, Fitness
+from deap.base import Fitness, Toolbox
+from numpy.random import triangular
 
 from .constraint import Constraint
 from .objective import Objective
@@ -36,6 +36,7 @@ class GAOptimizer(Optimizer):
         mutp: float,
         mut_indp: float,
         cx_indp: float,
+        early_stop: int = -1,
         init_pop: Iterable[Any] = None,
         verbose: bool = True,
     ) -> None:
@@ -49,6 +50,7 @@ class GAOptimizer(Optimizer):
         self._mutp = mutp
         self._mut_indp = mut_indp
         self._cx_indp = cx_indp
+        self._early_stop = early_stop if early_stop > 0 else n_gen
         self._init_pop = init_pop
         self._verbose = verbose
 
@@ -90,6 +92,9 @@ class GAOptimizer(Optimizer):
         )
         self._handle_generation(0, objective)
 
+        curr_max = self._best.fitness
+        no_improve = 0
+
         for gen in range(1, self._n_gen + 1):
             new_pop = list(map(self._toolbox.clone, self._elite_set(self._population)))
 
@@ -105,6 +110,18 @@ class GAOptimizer(Optimizer):
 
             self._population = new_pop
             self._handle_generation(gen, objective)
+
+            # Check if current best solution was changed
+            if self._best.fitness > curr_max:
+                curr_max = self._best.fitness
+                no_improve = 0
+            else:
+                no_improve += 1
+
+            # No improvement has been made, early stopping the optimization
+            if no_improve == self._early_stop:
+                print(f"No improvement has been made in {no_improve} generations, early stopping")
+                break
 
         return self._best
 
@@ -190,6 +207,7 @@ class BinaryGAOptimizer(GAOptimizer):
         mutp: float,
         mut_indp: float,
         cx_indp: float,
+        early_stop: int = -1,
         init_pop: Iterable[Any] = None,
         verbose: bool = True,
     ) -> None:
@@ -202,6 +220,7 @@ class BinaryGAOptimizer(GAOptimizer):
             mutp,
             mut_indp,
             cx_indp,
+            early_stop,
             init_pop,
             verbose,
         )
@@ -244,6 +263,7 @@ class IntegerGAOptimizer(GAOptimizer):
         mut_indp: float,
         cx_indp: float,
         bounds: Iterable[Tuple[int, int]],
+        early_stop: int = -1,
         init_pop: Iterable[Any] = None,
         verbose: bool = True,
     ) -> None:
@@ -256,6 +276,7 @@ class IntegerGAOptimizer(GAOptimizer):
             mutp,
             mut_indp,
             cx_indp,
+            early_stop,
             init_pop,
             verbose,
         )
