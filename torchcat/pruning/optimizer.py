@@ -279,13 +279,18 @@ class IntegerGAOptimizer(GAOptimizer):
 
         while len(pop) < self._pop_size:
             for i in range(self._pop_size + 1):
+                ind_content = []
                 p = i / self._pop_size
-                ind = ind_cls(
-                    [
-                        int(triangular(low, p * (up + 1 - low) + low, up + 1, size=1).item())
-                        for low, up in self._bounds
-                    ]
-                )
+
+                for low, up in self._bounds:
+                    size = up - low
+                    mode = p * (up - low) + low
+                    left = max(low, mode - 0.1 * size)
+                    right = min(up, mode + 0.1 * size)
+
+                    ind_content.append(int(triangular(left, mode, right, size=1).item()))
+
+                ind = ind_cls(ind_content)
 
                 if constraint.feasible(ind):
                     pop.append(ind)
