@@ -20,6 +20,6 @@ def mut_triangular(
 
     for i, l, u in zip(range(size), low, up):
         if random.random() < indpb:
-            individual[i] = int(random.triangular(low=l, high=u, mode=individual[i]))
+            individual[i] = int(random.triangular(low=l, high=u + 1, mode=individual[i]))
 
     return (individual,)
