@@ -22,4 +22,4 @@ def mut_triangular(
         if random.random() < indpb:
             individual[i] = int(random.triangular(low=l, high=u, mode=individual[i]))
 
-    return individual
+    return (individual,)
