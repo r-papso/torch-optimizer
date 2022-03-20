@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any, Iterable, List, Tuple
 
 import numpy as np
+from numpy.random import triangular
 from deap import creator, tools
 from deap.base import Toolbox, Fitness
 
@@ -277,9 +278,19 @@ class IntegerGAOptimizer(GAOptimizer):
         pop = []
 
         while len(pop) < self._pop_size:
-            ind = ind_cls([random.randint(low, up) for low, up in self._bounds])
+            for i in range(self._pop_size + 1):
+                p = i / self._pop_size
+                ind = ind_cls(
+                    [
+                        int(triangular(low, p * (up + 1 - low) + low, up + 1, size=1).item())
+                        for low, up in self._bounds
+                    ]
+                )
 
-            if constraint.feasible(ind):
-                pop.append(ind)
+                if constraint.feasible(ind):
+                    pop.append(ind)
+
+                if len(pop) == self._pop_size:
+                    break
 
         return pop
