@@ -10,7 +10,7 @@ from torch.optim import SGD
 
 from .. import utils
 from ..prune.pruner import Pruner
-from .utils import prune_model
+from .cache import Cache
 
 warnings.simplefilter("ignore", UserWarning)
 
@@ -50,7 +50,7 @@ class ModelObjective(Objective):
         return next(model.parameters()).device
 
     def _get_pruned_model(self, solution: Any) -> nn.Module:
-        return prune_model(self._model, self._pruner, solution)
+        return Cache.get_pruned_model(self._model, self._pruner, solution)
 
 
 class Accuracy(ModelObjective):
@@ -67,7 +67,38 @@ class Accuracy(ModelObjective):
         model = self._get_pruned_model(solution)
         device = self._model_device(model)
         accuracy = utils.evaluate(model, self._data, device)
-        del model
+
+        return (self._weight * accuracy / self._orig_acc,)
+
+
+class AccuracyFinetuned(ModelObjective):
+    def __init__(
+        self,
+        model: nn.Module,
+        pruner: Pruner,
+        weight: float,
+        train_data: Iterable,
+        val_data: Iterable,
+        iterations: int,
+        orig_acc: float,
+    ) -> None:
+        super().__init__(model, pruner)
+
+        self._weight = weight
+        self._train = train_data
+        self._val = val_data
+        self._iters = iterations
+        self._orig_acc = orig_acc
+
+    def evaluate(self, solution: Any) -> Tuple[float, ...]:
+        model = self._get_pruned_model(solution)
+        device = self._model_device(model)
+
+        optim = SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=0.0001)
+        loss_fn = nn.CrossEntropyLoss()
+
+        model = utils.train(model, self._train, device, optim, loss_fn, self._iters)
+        accuracy = utils.evaluate(model, self._val, device)
 
         return (self._weight * accuracy / self._orig_acc,)
 
@@ -94,7 +125,6 @@ class MacsPenalty(ModelObjective):
         device = self._model_device(model)
         in_tensor = torch.randn(self._input_shape, device=device)
         macs, _ = profile(model, inputs=(in_tensor,), verbose=False)
-        del model
 
         # To scale the penalty to [0, 1], we need to divide current penalty by maximum possible
         # penalty, i. e.: max(0, macs - orig_macs * p) / (orig_macs - orig_macs * p).
@@ -135,7 +165,6 @@ class LatencyPenalty(ModelObjective):
         penalty_scaled = penalty / (self._orig_time - self._orig_time * self._p)
         penalty_weighted = self._weigh * penalty_scaled
 
-        del model
         return (penalty_weighted,)
 
     def profile(self, model: nn.Module) -> List[float]:
@@ -179,7 +208,6 @@ class Macs(ModelObjective):
         in_tensor = torch.randn(self._in_shape, device=device)
         macs, _ = profile(model, inputs=(in_tensor,), verbose=False)
 
-        del model
         return (self._weight * (1.0 - macs / self._orig_macs),)
 
 
@@ -204,7 +232,6 @@ class PrunedRatioPenalty(ModelObjective):
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
         model = self._get_pruned_model(solution)
         nparams = self._compute_nparams(model) / self._orig_nparams
-        del model
 
         if nparams < self._lbound:
             return (self._weight * (self._lbound - nparams),)
@@ -215,36 +242,3 @@ class PrunedRatioPenalty(ModelObjective):
 
     def _compute_nparams(self, model: nn.Module) -> int:
         return sum([model.get_submodule(name).weight.data.numel() for name in self._names])
-
-
-class AccuracyFinetuned(ModelObjective):
-    def __init__(
-        self,
-        model: nn.Module,
-        pruner: Pruner,
-        weight: float,
-        train_data: Iterable,
-        val_data: Iterable,
-        iterations: int,
-        orig_acc: float,
-    ) -> None:
-        super().__init__(model, pruner)
-
-        self._weight = weight
-        self._train = train_data
-        self._val = val_data
-        self._iters = iterations
-        self._orig_acc = orig_acc
-
-    def evaluate(self, solution: Any) -> Tuple[float, ...]:
-        model = self._get_pruned_model(solution)
-        device = self._model_device(model)
-
-        optim = SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=0.0001)
-        loss_fn = nn.CrossEntropyLoss()
-
-        model = utils.train(model, self._train, device, optim, loss_fn, self._iters)
-        accuracy = utils.evaluate(model, self._val, device)
-
-        del model
-        return (self._weight * accuracy / self._orig_acc,)

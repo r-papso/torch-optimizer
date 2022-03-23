@@ -50,7 +50,7 @@ class GAOptimizer(Optimizer):
         self._mutp = mutp
         self._mut_indp = mut_indp
         self._cx_indp = cx_indp
-        self._early_stop = early_stop if early_stop > 0 else n_gen
+        self._early_stop = early_stop if early_stop > 0 else None
         self._init_pop = init_pop
         self._verbose = verbose
 
@@ -119,7 +119,7 @@ class GAOptimizer(Optimizer):
                 no_improve += 1
 
             # No improvement has been made, early stopping the optimization
-            if no_improve == self._early_stop:
+            if self._early_stop is not None and no_improve == self._early_stop:
                 time = datetime.now().strftime("%H:%M:%S")
                 print(
                     f"{time} - No improvement has been made in {no_improve} generations, early stopping"
