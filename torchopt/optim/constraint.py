@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
-from copy import deepcopy
-from typing import Any, Callable
+from typing import Any
 
 from torch import nn
 
 from ..prune.pruner import Pruner
+from . import utils
 
 
 class Constraint(ABC):
@@ -34,12 +34,12 @@ class ChannelConstraint(Constraint):
         self._model = model
 
     def feasible(self, solution: Any) -> bool:
-        model = deepcopy(self._model)
-        model = self._pruner.prune(model, solution)
+        model = utils.prune_model(self._model, self._pruner, solution)
         result = True
 
         for module in model.modules():
             weight = getattr(module, "weight", None)
+
             if weight is not None and any(dim <= 0 for dim in weight.shape):
                 result = False
                 break

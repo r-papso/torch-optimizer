@@ -312,7 +312,7 @@ class IntegerGAOptimizer(GAOptimizer):
                     left = max(low, mode - 0.1 * size)
                     right = min(up, mode + 0.1 * size)
 
-                    ind_content.append(int(random.triangular(left, right, mode)))
+                    ind_content.append(int(random.triangular(low=left, high=right, mode=mode)))
 
                 ind = ind_cls(ind_content)
 

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Callable, Dict, Iterable, Tuple
+from typing import Callable, Iterable, Tuple
 
 import ignite.metrics as metrics
 import torch
@@ -32,6 +32,17 @@ def cifar10_loaders(
     test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False)
 
     return train_loader, val_loader, test_loader
+
+
+def loader_to_memory(data_loader: DataLoader, device: str) -> Iterable[Tuple[Tensor, Tensor]]:
+    data = []
+
+    for inputs, labels in data_loader:
+        inputs = inputs.to(device)
+        labels = labels.to(device)
+        data.append((inputs, labels))
+
+    return data
 
 
 def train_ignite(
@@ -125,19 +136,6 @@ def evaluate(model: nn.Module, data: Iterable[Tuple[Tensor, Tensor]], device: st
             correct += (pred == labels).sum().item()
 
     return correct / total
-
-
-def create_channel_map(model: nn.Module) -> Dict[str, Tuple[int, int]]:
-    cmap = {}
-    lenght = 0
-
-    for name, module in model.named_modules():
-        if isinstance(module, nn.Conv2d):
-            n_filters = module.weight.shape[0]
-            cmap[name] = (lenght, n_filters)
-            lenght += n_filters
-
-    return cmap
 
 
 def _custom_output_transform(x, y, y_pred, loss):
