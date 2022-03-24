@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Callable, Iterable, Tuple
+from typing import Any, Callable, Iterable, Tuple
 
 import ignite.metrics as metrics
 import torch
@@ -9,16 +9,56 @@ from ignite.engine import Engine, Events, create_supervised_evaluator, create_su
 from ignite.handlers import Checkpoint, global_step_from_engine
 from ignite.handlers.param_scheduler import LRScheduler
 from torch.optim import Optimizer
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.sampler import SubsetRandomSampler
 from torchvision.datasets import CIFAR10
+from torchvision.transforms import ToTensor
+
+
+class InMemoryDataset(Dataset):
+    def __init__(self, data: Iterable[Tuple[Any, Any]], device: str, transform: Callable) -> None:
+        super().__init__()
+
+        self._transform = transform
+        self._data = self._data_to_device(data, device)
+
+    def _data_to_device(
+        self, data: Iterable[Tuple[Any, Any]], device: str
+    ) -> Iterable[Tuple[Tensor, Tensor]]:
+        results = []
+
+        for inputs, labels in data:
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+            results.append((inputs, labels))
+
+        return results
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+    def __getitem__(self, idx: int) -> Tuple[Tensor, Tensor]:
+        input_t, target_t = self._data[idx]
+
+        if self._transform is not None:
+            input_t = self._transform(input_t)
+
+        return input_t, target_t
 
 
 def cifar10_loaders(
-    folder: str, batch_size: int, val_size: int, train_transform: Callable, test_transform: Callable
+    folder: str,
+    batch_size: int,
+    val_size: int,
+    device: str,
+    train_transform: Callable,
+    test_transform: Callable,
 ) -> Tuple[DataLoader, ...]:
-    train_set = CIFAR10(download=True, root=folder, transform=train_transform, train=True)
-    test_set = CIFAR10(download=False, root=folder, transform=test_transform, train=False)
+    train_set = CIFAR10(download=True, root=folder, transform=ToTensor(), train=True)
+    test_set = CIFAR10(download=False, root=folder, transform=ToTensor(), train=False)
+
+    train_set = InMemoryDataset(train_set, device, train_transform)
+    test_set = InMemoryDataset(test_set, device, test_transform)
 
     idxs = list(range(len(train_set)))
     split = len(train_set) - val_size

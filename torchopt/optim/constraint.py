@@ -35,13 +35,11 @@ class ChannelConstraint(Constraint):
 
     def feasible(self, solution: Any) -> bool:
         model = Cache.get_pruned_model(self._model, self._pruner, solution)
-        result = True
 
         for module in model.modules():
             weight = getattr(module, "weight", None)
 
             if weight is not None and any(dim <= 0 for dim in weight.shape):
-                result = False
-                break
+                return False
 
-        return result
+        return True
