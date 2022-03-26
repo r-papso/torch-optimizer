@@ -100,7 +100,8 @@ class ChannelPruner(Pruner):
         result = []
 
         # Binary mask
-        if all(x in [0, 1] for x in mask):
+        if sum(len(model.get_submodule(name).weight) for name in self._names) == len(mask):
+            assert all(x in [0, 1] for x in mask), "Binary mask must contain only {0, 1}"
             length = 0
 
             for name in self._names:
@@ -111,7 +112,9 @@ class ChannelPruner(Pruner):
                 length += w_length
 
         # Integer mask
-        elif all(isinstance(x, int) for x in mask):
+        elif len(self._names) == len(mask):
+            assert all(isinstance(x, int) for x in mask), "Integer mask must contain integers only"
+
             for name, amount in zip(self._names, mask):
                 strategy = tp.strategy.L1Strategy()
                 idxs = strategy(model.get_submodule(name).weight, amount=amount)

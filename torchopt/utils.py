@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Callable, Iterable, Tuple
+from typing import Callable, Iterable, Tuple
 
 import ignite.metrics as metrics
 import torch
@@ -12,7 +12,6 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from torchvision.datasets import CIFAR10
-from torchvision.transforms import ToTensor
 
 
 def cifar10_loaders(
