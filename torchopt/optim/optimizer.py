@@ -245,7 +245,7 @@ class BinaryGAOptimizer(GAOptimizer):
                 p = (i + 1) / self._pop_size
                 ind = ind_cls([random.random() <= p for _ in range(self._ind_size)])
 
-                if constraint.feasible(ind):
+                if constraint.feasible(ind) and ind not in pop:
                     pop.append(ind)
 
                 if len(pop) == self._pop_size:
@@ -316,7 +316,7 @@ class IntegerGAOptimizer(GAOptimizer):
 
                 ind = ind_cls(ind_content)
 
-                if constraint.feasible(ind):
+                if constraint.feasible(ind) and ind not in pop:
                     pop.append(ind)
 
                 if len(pop) == self._pop_size:
