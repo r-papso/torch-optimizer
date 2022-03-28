@@ -102,10 +102,10 @@ class GAOptimizer(Optimizer):
                 off1, off2 = self._crossover(self._population)
                 off1, off2 = self._mutation(off1), self._mutation(off2)
 
-                if constraint.feasible(off1):
+                if constraint.feasible(off1) and off1 not in new_pop:
                     new_pop.append(off1)
 
-                if constraint.feasible(off2):
+                if constraint.feasible(off2) and off2 not in new_pop:
                     new_pop.append(off2)
 
             self._population = new_pop
