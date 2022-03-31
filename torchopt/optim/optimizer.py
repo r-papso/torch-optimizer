@@ -1,4 +1,5 @@
 import random
+import warnings
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Iterable, List, Tuple
@@ -10,6 +11,8 @@ from deap.base import Fitness, Toolbox
 from . import utils
 from .constraint import Constraint
 from .objective import Objective
+
+warnings.simplefilter("ignore", RuntimeWarning)
 
 
 class Optimizer(ABC):

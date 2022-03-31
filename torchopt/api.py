@@ -42,7 +42,7 @@ def vgg_best(finetune: bool, mode: str, dropout_decay: float = 0.0, **kwargs) ->
 
     model = pruner.prune(model, solution)
     model = _reduce_dropout(model, dropout_decay)
-    model = _train(model)
+    model = _train(model, 256)
 
     return model
 
@@ -65,13 +65,13 @@ def vgg_constrained(
     # Iteratively prune model according to upper bounds
     for b in bounds:
         optim = _integer_GA(model, **kwargs) if mode == "int" else _binary_GA(model, **kwargs)
-        objective = _objective_constrained(model, pruner, finetune, b, kwargs.get("weight", 1.0))
+        objective = _objective_constrained(model, pruner, finetune, b, kwargs.get("weight", -1.0))
         constraint = ChannelConstraint(model=model, pruner=pruner)
         solution = optim.maximize(objective, constraint)
 
         model = pruner.prune(model, solution)
         model = _reduce_dropout(model, dropout_decay)
-        model = _train(model)
+        model = _train(model, 256)
         torch.save(model, os.path.join(output_dir, f"vgg_constrained_{b}.pth"))
 
     return model
@@ -103,10 +103,10 @@ def _optimization_data() -> Tuple[Iterable, Iterable, Iterable]:
     return train_data, val_data, test_data
 
 
-def _train_data() -> Tuple[Iterable, Iterable, Iterable]:
+def _train_data(batch_size) -> Tuple[Iterable, Iterable, Iterable]:
     train_loader, val_loader, test_loader = utils.cifar10_loaders(
         folder="./data/cifar10",
-        batch_size=256,
+        batch_size=batch_size,
         val_size=5000,
         train_transform=Compose([RandomHorizontalFlip(p=0.5), RandomCrop(32, 4), ToTensor()]),
         test_transform=Compose([ToTensor()]),
@@ -138,6 +138,7 @@ def _objective_constrained(
 
     orig_acc = utils.evaluate(model, test_data, DEVICE)
     orig_macs, _ = profile(model, inputs=(torch.randn(INPUT_SHAPE, device=DEVICE),), verbose=False)
+    w = -1.0 * abs(w)
 
     acc = (
         Accuracy(model, pruner, 1.0, val_data, orig_acc)
@@ -187,14 +188,14 @@ def _binary_GA(model: nn.Module, **kwargs):
     )
 
 
-def _train(model: nn.Module) -> nn.Module:
+def _train(model: nn.Module, batch_size) -> nn.Module:
     package_dir = os.path.dirname(os.path.abspath(__file__))
     checkpoint = os.path.join(package_dir, "checkpoint")
 
     if os.path.exists(checkpoint):
         shutil.rmtree(checkpoint)
 
-    train_set, val_set, test_set = _train_data()
+    train_set, val_set, test_set = _train_data(batch_size)
     optimizer = SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=0.0001)
     loss_fn = nn.CrossEntropyLoss()
     torch_lr_scheduler = CosineAnnealingLR(optimizer, 50)
@@ -220,3 +221,5 @@ def _train(model: nn.Module) -> nn.Module:
 def _reduce_dropout(model: nn.Module, do_decay: float) -> nn.Module:
     for module in [module for module in model.modules() if isinstance(module, nn.Dropout)]:
         module.p -= do_decay
+
+    return model

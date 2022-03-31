@@ -1,8 +1,7 @@
 import warnings
 from abc import ABC, abstractmethod
-from typing import Any, Iterable, List, Tuple
+from typing import Any, Iterable, Tuple
 
-import numpy as np
 import torch
 import torch.nn as nn
 from thop import profile
@@ -133,58 +132,6 @@ class MacsPenalty(ModelObjective):
         penalty_weighted = self._weigh * penalty_scaled
 
         return (penalty_weighted,)
-
-
-class LatencyPenalty(ModelObjective):
-    def __init__(
-        self,
-        model: nn.Module,
-        pruner: Pruner,
-        weight: float,
-        p: float,
-        orig_time: float,
-        in_shape: Tuple[int, ...],
-        n_iters: int,
-    ) -> None:
-        super().__init__(model, pruner)
-
-        self._weigh = weight
-        self._p = p
-        self._orig_time = orig_time
-        self._in_shape = in_shape
-        self._n_iters = n_iters
-
-    def evaluate(self, solution: Any) -> Tuple[float, ...]:
-        model = self._get_pruned_model(solution)
-        times = self.profile(model)
-        avg_time = np.average(times)
-
-        # To scale the penalty to [0, 1], we need to divide current penalty by maximum possible
-        # penalty, i. e.: max(0, time - orig_time * p) / (orig_time - orig_time * p).
-        penalty = max(0.0, avg_time - self._orig_time * self._p)
-        penalty_scaled = penalty / (self._orig_time - self._orig_time * self._p)
-        penalty_weighted = self._weigh * penalty_scaled
-
-        return (penalty_weighted,)
-
-    def profile(self, model: nn.Module) -> List[float]:
-        device = self._model_device(model)
-        times = []
-        model.eval()
-
-        for _ in range(self._n_iters):
-            start = torch.cuda.Event(enable_timing=True)
-            end = torch.cuda.Event(enable_timing=True)
-            in_tensor = torch.randn(self._in_shape, device=device)
-
-            start.record()
-            _ = model(in_tensor)
-            end.record()
-
-            torch.cuda.synchronize()
-            times.append(start.elapsed_time(end))
-
-        return times
 
 
 class Macs(ModelObjective):
