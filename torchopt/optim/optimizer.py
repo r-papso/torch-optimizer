@@ -63,19 +63,13 @@ class GAOptimizer(Optimizer):
         creator.create("FitnessMin", Fitness, weights=(-1.0,))
         creator.create("Individual", list, fitness=creator.FitnessMin)
 
-        self._optimize(objective, constraint)
+        return self._optimize(objective, constraint)
 
     def maximize(self, objective: Objective, constraint: Constraint) -> Any:
         creator.create("FitnessMax", Fitness, weights=(1.0,))
         creator.create("Individual", list, fitness=creator.FitnessMax)
 
-        self._optimize(objective, constraint)
-
-    def best(self) -> Any:
-        return self._best
-
-    def population(self) -> Iterable[Any]:
-        return self._population
+        return self._optimize(objective, constraint)
 
     def history(self) -> Any:
         return self._history
@@ -152,7 +146,7 @@ class GAOptimizer(Optimizer):
             time = datetime.now().strftime("%H:%M:%S")
             print(f"{time} - Generation {gen_num:04d}: {stats_str}")
 
-    def _init_population(self, ind_cls: Any) -> Iterable[Any]:
+    def _init_population(self, ind_cls: type) -> Iterable[Any]:
         return [ind_cls(content) for content in self._init_pop]
 
     def _crossover(self, population: Iterable[Any]) -> Tuple[Any]:

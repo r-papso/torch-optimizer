@@ -25,6 +25,7 @@ class ModulePruner(Pruner):
 
     def prune(self, model: nn.Module, mask: Any) -> nn.Module:
         assert len(mask) == len(self._names), "Mask's length must be equal to names length"
+        assert all(x in [0, 1] for x in mask), "Module pruner supports only pruning by binary masks"
 
         for name in [name for sign, name in zip(mask, self._names) if not sign]:
             model = self._prune_module(model, name)
