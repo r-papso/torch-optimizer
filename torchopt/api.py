@@ -21,7 +21,7 @@ from .optim.objective import (
     ObjectiveContainer,
 )
 from .optim.optimizer import BinaryGAOptimizer, IntegerGAOptimizer, Optimizer
-from .prune.pruner import ChannelPruner, Pruner
+from .prune.pruner import ChannelPruner, ModulePruner, Pruner
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 INPUT_SHAPE = (1, 3, 32, 32)
@@ -61,11 +61,13 @@ def vgg_constrained(
     model = utils.get_vgg16()
     conv_names = [name for name, module in model.named_modules() if isinstance(module, nn.Conv2d)]
     pruner = ChannelPruner(conv_names, INPUT_SHAPE)
+    orig_macs, _ = profile(model, inputs=(torch.randn(INPUT_SHAPE, device=DEVICE),), verbose=False)
+    w = kwargs.get("weight", -1.0)
 
     # Iteratively prune model according to upper bounds
     for b in bounds:
         optim = _integer_GA(model, **kwargs) if mode == "int" else _binary_GA(model, **kwargs)
-        objective = _objective_constrained(model, pruner, finetune, b, kwargs.get("weight", -1.0))
+        objective = _objective_constrained(model, pruner, finetune, orig_macs, b, w)
         constraint = ChannelConstraint(model=model, pruner=pruner)
         solution = optim.maximize(objective, constraint)
 
@@ -117,7 +119,6 @@ def _train_data(batch_size) -> Tuple[Iterable, Iterable, Iterable]:
 
 def _objective_best(model: nn.Module, pruner: Pruner, finetune: bool, w: float) -> Objective:
     train_data, val_data, test_data = _optimization_data()
-
     orig_acc = utils.evaluate(model, test_data, DEVICE)
     orig_macs, _ = profile(model, inputs=(torch.randn(INPUT_SHAPE, device=DEVICE),), verbose=False)
 
@@ -132,13 +133,11 @@ def _objective_best(model: nn.Module, pruner: Pruner, finetune: bool, w: float) 
 
 
 def _objective_constrained(
-    model: nn.Module, pruner: Pruner, finetune: bool, p: float, w: float
+    model: nn.Module, pruner: Pruner, finetune: bool, orig_macs: int, p: float, w: float
 ) -> Objective:
     train_data, val_data, test_data = _optimization_data()
-
-    orig_acc = utils.evaluate(model, test_data, DEVICE)
-    orig_macs, _ = profile(model, inputs=(torch.randn(INPUT_SHAPE, device=DEVICE),), verbose=False)
     w = -1.0 * abs(w)
+    orig_acc = utils.evaluate(model, test_data, DEVICE)
 
     acc = (
         Accuracy(model, pruner, 1.0, val_data, orig_acc)
@@ -170,7 +169,7 @@ def _integer_GA(model: nn.Module, **kwargs) -> Optimizer:
     )
 
 
-def _binary_GA(model: nn.Module, **kwargs):
+def _binary_GA(model: nn.Module, **kwargs) -> Optimizer:
     pop_size = kwargs.get("pop_size", 100)
     ind_size = sum(
         [len(module.weight) for module in model.modules() if isinstance(module, nn.Conv2d)]
@@ -213,13 +212,13 @@ def _train(model: nn.Module, batch_size) -> nn.Module:
     )
 
     model_f = next(f for f in os.listdir(checkpoint) if os.path.isfile(os.path.join(checkpoint, f)))
-    model.load_state_dict(torch.load(model_f))
+    model.load_state_dict(torch.load(os.path.join(checkpoint, model_f)))
 
     return model
 
 
 def _reduce_dropout(model: nn.Module, do_decay: float) -> nn.Module:
     for module in [module for module in model.modules() if isinstance(module, nn.Dropout)]:
-        module.p -= do_decay
+        module.p = max(0, module.p - do_decay)
 
     return model

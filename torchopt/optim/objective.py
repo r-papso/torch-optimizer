@@ -102,6 +102,30 @@ class AccuracyFinetuned(ModelObjective):
         return (self._weight * accuracy / self._orig_acc,)
 
 
+class Macs(ModelObjective):
+    def __init__(
+        self,
+        model: nn.Module,
+        pruner: Pruner,
+        orig_macs: int,
+        weight: float,
+        in_shape: Tuple[int, ...],
+    ) -> None:
+        super().__init__(model, pruner)
+
+        self._orig_macs = orig_macs
+        self._weight = weight
+        self._in_shape = in_shape
+
+    def evaluate(self, solution: Any) -> Tuple[float, ...]:
+        model = self._get_pruned_model(solution)
+        device = self._model_device(model)
+        in_tensor = torch.randn(self._in_shape, device=device)
+        macs, _ = profile(model, inputs=(in_tensor,), verbose=False)
+
+        return (self._weight * (1.0 - macs / self._orig_macs),)
+
+
 class MacsPenalty(ModelObjective):
     def __init__(
         self,
@@ -132,30 +156,6 @@ class MacsPenalty(ModelObjective):
         penalty_weighted = self._weigh * penalty_scaled
 
         return (penalty_weighted,)
-
-
-class Macs(ModelObjective):
-    def __init__(
-        self,
-        model: nn.Module,
-        pruner: Pruner,
-        orig_macs: int,
-        weight: float,
-        in_shape: Tuple[int, ...],
-    ) -> None:
-        super().__init__(model, pruner)
-
-        self._orig_macs = orig_macs
-        self._weight = weight
-        self._in_shape = in_shape
-
-    def evaluate(self, solution: Any) -> Tuple[float, ...]:
-        model = self._get_pruned_model(solution)
-        device = self._model_device(model)
-        in_tensor = torch.randn(self._in_shape, device=device)
-        macs, _ = profile(model, inputs=(in_tensor,), verbose=False)
-
-        return (self._weight * (1.0 - macs / self._orig_macs),)
 
 
 class PrunedRatioPenalty(ModelObjective):
