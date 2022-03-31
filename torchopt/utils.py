@@ -1,17 +1,36 @@
+import os
+import sys
 from datetime import datetime
 from typing import Callable, Iterable, Tuple
 
 import ignite.metrics as metrics
 import torch
 import torch.nn as nn
-from torch import Tensor
 from ignite.engine import Engine, Events, create_supervised_evaluator, create_supervised_trainer
 from ignite.handlers import Checkpoint, global_step_from_engine
 from ignite.handlers.param_scheduler import LRScheduler
+from torch import Tensor
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from torchvision.datasets import CIFAR10
+
+PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(PACKAGE_DIR, "models"))
+
+
+def get_vgg16() -> nn.Module:
+    model = torch.load(os.path.join(PACKAGE_DIR, "models", "vgg16_cifar10_0.9225_45k.pth"))
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = model.to(device)
+    return model
+
+
+def get_resnet56() -> nn.Module:
+    model = torch.load(os.path.join(PACKAGE_DIR, "models", "resnet56_cifar10_0.9320_45k.pth"))
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = model.to(device)
+    return model
 
 
 def cifar10_loaders(
