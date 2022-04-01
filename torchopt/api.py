@@ -1,5 +1,6 @@
 import os
 import shutil
+from pathlib import Path
 from typing import Iterable, Tuple
 
 import torch
@@ -27,22 +28,39 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 INPUT_SHAPE = (1, 3, 32, 32)
 
 
-def vgg_best(finetune: bool, mode: str, dropout_decay: float = 0.0, **kwargs) -> nn.Module:
+def vgg_best(
+    finetune: bool,
+    mode: str,
+    output_dir: str,
+    dropout_decay: float = 0.0,
+    iterative: bool = False,
+    **kwargs,
+) -> nn.Module:
     if mode not in ["int", "binary"]:
         raise ValueError("Invalid mode {mode}, currently supported modes are: ['int, 'binary']")
+
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     model = utils.get_vgg16()
     conv_names = [name for name, module in model.named_modules() if isinstance(module, nn.Conv2d)]
     pruner = ChannelPruner(conv_names, INPUT_SHAPE)
+    _, _, test_data = _optimization_data()
+    i = 0
 
-    optim = _integer_GA(model, **kwargs) if mode == "int" else _binary_GA(model, **kwargs)
-    objective = _objective_best(model, pruner, finetune, kwargs.get("weight", 1.0))
-    constraint = ChannelConstraint(model=model, pruner=pruner)
-    solution = optim.maximize(objective, constraint)
+    while utils.evaluate(model, test_data, DEVICE) >= kwargs.get("min_acc", 0.9):
+        optim = _integer_GA(model, **kwargs) if mode == "int" else _binary_GA(model, **kwargs)
+        objective = _objective_best(model, pruner, finetune, kwargs.get("weight", 1.0))
+        constraint = ChannelConstraint(model=model, pruner=pruner)
+        solution = optim.maximize(objective, constraint)
 
-    model = pruner.prune(model, solution)
-    model = _reduce_dropout(model, dropout_decay)
-    model = _train(model, 256)
+        model = pruner.prune(model, solution)
+        model = _reduce_dropout(model, dropout_decay)
+        model = _train(model, 256)
+        torch.save(model, os.path.join(output_dir, f"vgg_best_{i}.pth"))
+        i += 1
+
+        if not iterative:
+            break
 
     return model
 
@@ -57,6 +75,8 @@ def vgg_constrained(
 ) -> nn.Module:
     if mode not in ["int", "binary"]:
         raise ValueError("Invalid mode {mode}, currently supported modes are: ['int, 'binary']")
+
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     model = utils.get_vgg16()
     conv_names = [name for name, module in model.named_modules() if isinstance(module, nn.Conv2d)]
@@ -79,7 +99,7 @@ def vgg_constrained(
     return model
 
 
-def resnet_best(finetune: bool, mode: str, **kwargs) -> nn.Module:
+def resnet_best(finetune: bool, mode: str, iterative: bool = False, **kwargs) -> nn.Module:
     pass
 
 
