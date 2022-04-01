@@ -62,7 +62,7 @@ def vgg_best(
         _save_solution(solution, os.path.join(output_dir, f"vgg_best_solution_{i}.txt"))
         i += 1
 
-        if not iterative or solution.fitness.values[0] <= kwargs.get("min_improve", 1.0):
+        if not iterative or solution.fitness.values[0] <= kwargs.get("min_improve", 1.15):
             break
 
     return model
@@ -154,7 +154,7 @@ def resnet_best(
         _save_solution(solution, os.path.join(output_dir, f"resnet_best_solution_{i}.txt"))
         i += 1
 
-        if not iterative or solution.fitness.values[0] <= kwargs.get("min_improve", 1.0):
+        if not iterative or solution.fitness.values[0] <= kwargs.get("min_improve", 1.15):
             break
 
     return model
@@ -194,7 +194,7 @@ def resnet_constrained(
         # Perform block pruning
         if alternate:
             optim = _module_GA(model, len(m_names), **kwargs)
-            objective = _objective_best(model, m_pruner, finetune, kwargs.get("weight", 1.0))
+            objective = _objective_constrained(model, m_pruner, finetune, orig_macs, b, w)
             constraint = ChannelConstraint(model, m_pruner)
             m_solution = optim.maximize(objective, constraint)
 
