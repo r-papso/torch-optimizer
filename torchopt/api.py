@@ -142,10 +142,9 @@ def resnet_best(
 
         # Perform block pruning
         if alternate:
-            optim = _module_GA(model, len(m_names), **kwargs)
+            optim = _module_GA(len(m_names), **kwargs)
             objective = _objective_best(model, m_pruner, finetune, kwargs.get("weight", 1.0))
-            constraint = ChannelConstraint(model, m_pruner)
-            m_solution = optim.maximize(objective, constraint)
+            m_solution = optim.maximize(objective, None)
 
         model, solution = _choose_best(model, ch_solution, ch_pruner, m_solution, m_pruner)
         model = _train(model, 128)
@@ -193,10 +192,9 @@ def resnet_constrained(
 
         # Perform block pruning
         if alternate:
-            optim = _module_GA(model, len(m_names), **kwargs)
+            optim = _module_GA(len(m_names), **kwargs)
             objective = _objective_constrained(model, m_pruner, finetune, orig_macs, b, w)
-            constraint = ChannelConstraint(model, m_pruner)
-            m_solution = optim.maximize(objective, constraint)
+            m_solution = optim.maximize(objective, None)
 
         model, solution = _choose_best(model, ch_solution, ch_pruner, m_solution, m_pruner)
         model = _train(model, 128)
@@ -305,8 +303,19 @@ def _binary_GA(model: nn.Module, **kwargs) -> Optimizer:
     )
 
 
-def _module_GA(model: nn.Module, ind_size: int, **kwargs) -> Optimizer:
+def _module_GA(ind_size: int, **kwargs) -> Optimizer:
     pop_size = kwargs.get("pop_size", 100)
+
+    return BinaryGAOptimizer(
+        ind_size=ind_size,
+        pop_size=pop_size,
+        elite_num=kwargs.get("elite_num", int(0.1 * pop_size)),
+        tourn_size=kwargs.get("tourn_size", int(0.1 * pop_size)),
+        n_gen=kwargs.get("n_gen", 50),
+        mutp=kwargs.get("mutp", 0.1),
+        mut_indp=kwargs.get("mut_indp", 0.01),
+        cx_indp=kwargs.get("cx_indp", 0.5),
+    )
 
 
 def _train(model: nn.Module, batch_size) -> nn.Module:
