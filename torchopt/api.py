@@ -125,16 +125,16 @@ def resnet_best(
     model = utils.get_resnet56()
     i = 0
 
-    # Channel pruning
-    ch_names = [name for name, module in model.named_modules() if isinstance(module, nn.Conv2d)]
-    ch_pruner = ChannelPruner(ch_names, INPUT_SHAPE)
-
-    # Block pruning
-    m_names = [n for n, m in model.named_modules() if type(m).__name__ == "BasicBlock"]
-    m_pruner = ResnetModulePruner(m_names, "shortcut")
-    m_solution = None
-
     while True:
+        # Channel pruning
+        ch_names = [name for name, module in model.named_modules() if isinstance(module, nn.Conv2d)]
+        ch_pruner = ChannelPruner(ch_names, INPUT_SHAPE)
+
+        # Block pruning
+        m_names = [n for n, m in model.named_modules() if type(m).__name__ == "BasicBlock"]
+        m_pruner = ResnetModulePruner(m_names, "shortcut")
+        m_solution = None
+
         optim = _integer_GA(model, **kwargs) if mode == "int" else _binary_GA(model, **kwargs)
         objective = _objective_best(model, ch_pruner, finetune, kwargs.get("weight", 1.0))
         constraint = ChannelConstraint(model, ch_pruner)
@@ -174,17 +174,17 @@ def resnet_constrained(
     orig_macs, _ = profile(model, inputs=(torch.randn(INPUT_SHAPE, device=DEVICE),), verbose=False)
     w = kwargs.get("weight", -1.0)
 
-    # Channel pruning
-    ch_names = [name for name, module in model.named_modules() if isinstance(module, nn.Conv2d)]
-    ch_pruner = ChannelPruner(ch_names, INPUT_SHAPE)
-
-    # Block pruning
-    m_names = [n for n, m in model.named_modules() if type(m).__name__ == "BasicBlock"]
-    m_pruner = ResnetModulePruner(m_names, "shortcut")
-    m_solution = None
-
     # Iteratively prune model according to upper bounds
     for b in bounds:
+        # Channel pruning
+        ch_names = [name for name, module in model.named_modules() if isinstance(module, nn.Conv2d)]
+        ch_pruner = ChannelPruner(ch_names, INPUT_SHAPE)
+
+        # Block pruning
+        m_names = [n for n, m in model.named_modules() if type(m).__name__ == "BasicBlock"]
+        m_pruner = ResnetModulePruner(m_names, "shortcut")
+        m_solution = None
+
         optim = _integer_GA(model, **kwargs) if mode == "int" else _binary_GA(model, **kwargs)
         objective = _objective_constrained(model, ch_pruner, finetune, orig_macs, b, w)
         constraint = ChannelConstraint(model, ch_pruner)
@@ -207,7 +207,7 @@ def resnet_constrained(
 
 def _optimization_data() -> Tuple[Iterable, Iterable, Iterable]:
     train_loader, val_loader, test_loader = utils.cifar10_loaders(
-        folder="./data/cifar10",
+        folder=os.path.join(os.getcwd(), "data", "cifar10"),
         batch_size=256,
         val_size=5000,
         train_transform=Compose([ToTensor()]),
@@ -223,7 +223,7 @@ def _optimization_data() -> Tuple[Iterable, Iterable, Iterable]:
 
 def _train_data(batch_size) -> Tuple[Iterable, Iterable, Iterable]:
     train_loader, val_loader, test_loader = utils.cifar10_loaders(
-        folder="./data/cifar10",
+        folder=os.path.join(os.getcwd(), "data", "cifar10"),
         batch_size=batch_size,
         val_size=5000,
         train_transform=Compose([RandomHorizontalFlip(p=0.5), RandomCrop(32, 4), ToTensor()]),
@@ -319,8 +319,7 @@ def _module_GA(ind_size: int, **kwargs) -> Optimizer:
 
 
 def _train(model: nn.Module, batch_size) -> nn.Module:
-    package_dir = os.path.dirname(os.path.abspath(__file__))
-    checkpoint = os.path.join(package_dir, "checkpoint")
+    checkpoint = os.path.join(os.getcwd(), "tmp", "checkpoint")
 
     if os.path.exists(checkpoint):
         shutil.rmtree(checkpoint)
