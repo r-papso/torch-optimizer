@@ -1,7 +1,6 @@
 import os
 import shutil
-from pathlib import Path
-from typing import Iterable, Tuple
+from typing import Any, Iterable, Tuple
 
 import torch
 import torch.nn as nn
@@ -22,7 +21,7 @@ from .optim.objective import (
     ObjectiveContainer,
 )
 from .optim.optimizer import BinaryGAOptimizer, IntegerGAOptimizer, Optimizer
-from .prune.pruner import ChannelPruner, ModulePruner, Pruner
+from .prune.pruner import ChannelPruner, Pruner, ResnetModulePruner
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 INPUT_SHAPE = (1, 3, 32, 32)
@@ -39,27 +38,31 @@ def vgg_best(
     if mode not in ["int", "binary"]:
         raise ValueError("Invalid mode {mode}, currently supported modes are: ['int, 'binary']")
 
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+
+    os.makedirs(output_dir, exist_ok=True)
 
     model = utils.get_vgg16()
     conv_names = [name for name, module in model.named_modules() if isinstance(module, nn.Conv2d)]
     pruner = ChannelPruner(conv_names, INPUT_SHAPE)
-    _, _, test_data = _optimization_data()
     i = 0
 
-    while utils.evaluate(model, test_data, DEVICE) >= kwargs.get("min_acc", 0.9):
+    while True:
         optim = _integer_GA(model, **kwargs) if mode == "int" else _binary_GA(model, **kwargs)
         objective = _objective_best(model, pruner, finetune, kwargs.get("weight", 1.0))
-        constraint = ChannelConstraint(model=model, pruner=pruner)
+        constraint = ChannelConstraint(model, pruner)
         solution = optim.maximize(objective, constraint)
 
         model = pruner.prune(model, solution)
         model = _reduce_dropout(model, dropout_decay)
         model = _train(model, 256)
-        torch.save(model, os.path.join(output_dir, f"vgg_best_{i}.pth"))
+
+        torch.save(model, os.path.join(output_dir, f"vgg_best_model_{i}.pth"))
+        _save_solution(solution, os.path.join(output_dir, f"vgg_best_solution_{i}.txt"))
         i += 1
 
-        if not iterative:
+        if not iterative or solution.fitness.values[0] <= kwargs.get("min_improve", 1.0):
             break
 
     return model
@@ -76,7 +79,10 @@ def vgg_constrained(
     if mode not in ["int", "binary"]:
         raise ValueError("Invalid mode {mode}, currently supported modes are: ['int, 'binary']")
 
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+
+    os.makedirs(output_dir, exist_ok=True)
 
     model = utils.get_vgg16()
     conv_names = [name for name, module in model.named_modules() if isinstance(module, nn.Conv2d)]
@@ -88,25 +94,117 @@ def vgg_constrained(
     for b in bounds:
         optim = _integer_GA(model, **kwargs) if mode == "int" else _binary_GA(model, **kwargs)
         objective = _objective_constrained(model, pruner, finetune, orig_macs, b, w)
-        constraint = ChannelConstraint(model=model, pruner=pruner)
+        constraint = ChannelConstraint(model, pruner)
         solution = optim.maximize(objective, constraint)
 
         model = pruner.prune(model, solution)
         model = _reduce_dropout(model, dropout_decay)
         model = _train(model, 256)
-        torch.save(model, os.path.join(output_dir, f"vgg_constrained_{b}.pth"))
+        torch.save(model, os.path.join(output_dir, f"vgg_constrained_model_{b}.pth"))
+        _save_solution(solution, os.path.join(output_dir, f"vgg_constrained_solution_{b}.txt"))
 
     return model
 
 
-def resnet_best(finetune: bool, mode: str, iterative: bool = False, **kwargs) -> nn.Module:
-    pass
+def resnet_best(
+    finetune: bool,
+    mode: str,
+    output_dir: str,
+    iterative: bool = False,
+    alternate: bool = True,
+    **kwargs,
+) -> nn.Module:
+    if mode not in ["int", "binary"]:
+        raise ValueError("Invalid mode {mode}, currently supported modes are: ['int, 'binary']")
+
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    model = utils.get_resnet56()
+    i = 0
+
+    # Channel pruning
+    ch_names = [name for name, module in model.named_modules() if isinstance(module, nn.Conv2d)]
+    ch_pruner = ChannelPruner(ch_names, INPUT_SHAPE)
+
+    # Block pruning
+    m_names = [n for n, m in model.named_modules() if type(m).__name__ == "BasicBlock"]
+    m_pruner = ResnetModulePruner(m_names, "shortcut")
+    m_solution = None
+
+    while True:
+        optim = _integer_GA(model, **kwargs) if mode == "int" else _binary_GA(model, **kwargs)
+        objective = _objective_best(model, ch_pruner, finetune, kwargs.get("weight", 1.0))
+        constraint = ChannelConstraint(model, ch_pruner)
+        ch_solution = optim.maximize(objective, constraint)
+
+        # Perform block pruning
+        if alternate:
+            optim = _module_GA(model, len(m_names), **kwargs)
+            objective = _objective_best(model, m_pruner, finetune, kwargs.get("weight", 1.0))
+            constraint = ChannelConstraint(model, m_pruner)
+            m_solution = optim.maximize(objective, constraint)
+
+        model, solution = _choose_best(model, ch_solution, ch_pruner, m_solution, m_pruner)
+        model = _train(model, 128)
+
+        torch.save(model, os.path.join(output_dir, f"resnet_best_model_{i}.pth"))
+        _save_solution(solution, os.path.join(output_dir, f"resnet_best_solution_{i}.txt"))
+        i += 1
+
+        if not iterative or solution.fitness.values[0] <= kwargs.get("min_improve", 1.0):
+            break
+
+    return model
 
 
 def resnet_constrained(
-    finetune: bool, mode: str, bounds: Iterable, output_dir: str, **kwargs
+    finetune: bool, mode: str, bounds: Iterable, output_dir: str, alternate: bool = True, **kwargs
 ) -> nn.Module:
-    pass
+    if mode not in ["int", "binary"]:
+        raise ValueError("Invalid mode {mode}, currently supported modes are: ['int, 'binary']")
+
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    model = utils.get_resnet56()
+    orig_macs, _ = profile(model, inputs=(torch.randn(INPUT_SHAPE, device=DEVICE),), verbose=False)
+    w = kwargs.get("weight", -1.0)
+
+    # Channel pruning
+    ch_names = [name for name, module in model.named_modules() if isinstance(module, nn.Conv2d)]
+    ch_pruner = ChannelPruner(ch_names, INPUT_SHAPE)
+
+    # Block pruning
+    m_names = [n for n, m in model.named_modules() if type(m).__name__ == "BasicBlock"]
+    m_pruner = ResnetModulePruner(m_names, "shortcut")
+    m_solution = None
+
+    # Iteratively prune model according to upper bounds
+    for b in bounds:
+        optim = _integer_GA(model, **kwargs) if mode == "int" else _binary_GA(model, **kwargs)
+        objective = _objective_constrained(model, ch_pruner, finetune, orig_macs, b, w)
+        constraint = ChannelConstraint(model, ch_pruner)
+        ch_solution = optim.maximize(objective, constraint)
+
+        # Perform block pruning
+        if alternate:
+            optim = _module_GA(model, len(m_names), **kwargs)
+            objective = _objective_best(model, m_pruner, finetune, kwargs.get("weight", 1.0))
+            constraint = ChannelConstraint(model, m_pruner)
+            m_solution = optim.maximize(objective, constraint)
+
+        model, solution = _choose_best(model, ch_solution, ch_pruner, m_solution, m_pruner)
+        model = _train(model, 128)
+
+        torch.save(model, os.path.join(output_dir, f"resnet_constrained_model_{b}.pth"))
+        _save_solution(solution, os.path.join(output_dir, f"resnet_constrained_solution_{b}.txt"))
+
+    return model
 
 
 def _optimization_data() -> Tuple[Iterable, Iterable, Iterable]:
@@ -207,6 +305,10 @@ def _binary_GA(model: nn.Module, **kwargs) -> Optimizer:
     )
 
 
+def _module_GA(model: nn.Module, ind_size: int, **kwargs) -> Optimizer:
+    pop_size = kwargs.get("pop_size", 100)
+
+
 def _train(model: nn.Module, batch_size) -> nn.Module:
     package_dir = os.path.dirname(os.path.abspath(__file__))
     checkpoint = os.path.join(package_dir, "checkpoint")
@@ -231,7 +333,11 @@ def _train(model: nn.Module, batch_size) -> nn.Module:
         lr_scheduler=scheduler,
     )
 
-    model_f = next(f for f in os.listdir(checkpoint) if os.path.isfile(os.path.join(checkpoint, f)))
+    model_f = next(
+        f
+        for f in os.listdir(checkpoint)
+        if os.path.isfile(os.path.join(checkpoint, f)) and os.path.splitext(f)[1] == ".pt"
+    )
     model.load_state_dict(torch.load(os.path.join(checkpoint, model_f)))
 
     return model
@@ -242,3 +348,17 @@ def _reduce_dropout(model: nn.Module, do_decay: float) -> nn.Module:
         module.p = max(0, module.p - do_decay)
 
     return model
+
+
+def _save_solution(solution: Any, out_f: str) -> None:
+    with open(out_f, "a") as dest:
+        dest.write(f"{','.join([str(x) for x in solution])}\n")
+
+
+def _choose_best(
+    model: nn.Module, ch_sol: Any, ch_pr: Pruner, m_sol: Any, m_pr: Pruner
+) -> Tuple[nn.Module, Any]:
+    pr = ch_pr if m_sol is None or ch_sol.fitness.values[0] > m_sol.fitness.values[0] else m_pr
+    sol = ch_sol if m_sol is None or ch_sol.fitness.values[0] > m_sol.fitness.values[0] else m_sol
+
+    return pr.prune(model, sol), sol
