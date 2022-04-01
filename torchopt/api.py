@@ -325,7 +325,7 @@ def _train(model: nn.Module, batch_size) -> nn.Module:
     if os.path.exists(checkpoint):
         shutil.rmtree(checkpoint)
 
-    train_set, val_set, test_set = _train_data(batch_size)
+    train_set, _, test_set = _train_data(batch_size)
     optimizer = SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=0.0001)
     loss_fn = nn.CrossEntropyLoss()
     torch_lr_scheduler = CosineAnnealingLR(optimizer, 50)
