@@ -1,6 +1,6 @@
 import os
 import shutil
-from typing import Any, Iterable, Tuple
+from typing import Any, Iterable, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -31,7 +31,7 @@ def vgg_best(
     finetune: bool,
     mode: str,
     output_dir: str,
-    dropout_decay: float = 0.0,
+    dropout_decay: Union[float, Iterable] = 0.0,
     iterative: bool = False,
     **kwargs,
 ) -> nn.Module:
@@ -44,8 +44,8 @@ def vgg_best(
     os.makedirs(output_dir, exist_ok=True)
 
     model = utils.get_vgg16()
-    conv_names = [name for name, module in model.named_modules() if isinstance(module, nn.Conv2d)]
-    pruner = ChannelPruner(conv_names, INPUT_SHAPE)
+    names = [name for name, _ in _modules_to_prune(model)]
+    pruner = ChannelPruner(names, INPUT_SHAPE)
     i = 0
 
     while True:
@@ -73,7 +73,7 @@ def vgg_constrained(
     mode: str,
     bounds: Iterable,
     output_dir: str,
-    dropout_decay: float = 0.0,
+    dropout_decay: Union[float, Iterable] = 0.0,
     **kwargs,
 ) -> nn.Module:
     if mode not in ["int", "binary"]:
@@ -85,8 +85,8 @@ def vgg_constrained(
     os.makedirs(output_dir, exist_ok=True)
 
     model = utils.get_vgg16()
-    conv_names = [name for name, module in model.named_modules() if isinstance(module, nn.Conv2d)]
-    pruner = ChannelPruner(conv_names, INPUT_SHAPE)
+    names = [name for name, _ in _modules_to_prune(model)]
+    pruner = ChannelPruner(names, INPUT_SHAPE)
     orig_macs, _ = profile(model, inputs=(torch.randn(INPUT_SHAPE, device=DEVICE),), verbose=False)
     w = kwargs.get("weight", -1.0)
 
@@ -124,24 +124,23 @@ def resnet_best(
 
     model = utils.get_resnet56()
     i = 0
+    m_solution = None
 
     while True:
         # Channel pruning
-        ch_names = [name for name, module in model.named_modules() if isinstance(module, nn.Conv2d)]
+        ch_names = [name for name, _ in _modules_to_prune(model)]
         ch_pruner = ChannelPruner(ch_names, INPUT_SHAPE)
-
-        # Block pruning
-        m_names = [n for n, m in model.named_modules() if type(m).__name__ == "BasicBlock"]
-        m_pruner = ResnetModulePruner(m_names, "shortcut")
-        m_solution = None
 
         optim = _integer_GA(model, **kwargs) if mode == "int" else _binary_GA(model, **kwargs)
         objective = _objective_best(model, ch_pruner, finetune, kwargs.get("weight", 1.0))
         constraint = ChannelConstraint(model, ch_pruner)
         ch_solution = optim.maximize(objective, constraint)
 
-        # Perform block pruning
+        # Block pruning
         if alternate:
+            m_names = [n for n, m in model.named_modules() if type(m).__name__ == "BasicBlock"]
+            m_pruner = ResnetModulePruner(m_names, "shortcut")
+
             optim = _module_GA(len(m_names), **kwargs)
             objective = _objective_best(model, m_pruner, finetune, kwargs.get("weight", 1.0))
             m_solution = optim.maximize(objective, None)
@@ -173,25 +172,24 @@ def resnet_constrained(
     model = utils.get_resnet56()
     orig_macs, _ = profile(model, inputs=(torch.randn(INPUT_SHAPE, device=DEVICE),), verbose=False)
     w = kwargs.get("weight", -1.0)
+    m_solution = None
 
     # Iteratively prune model according to upper bounds
     for b in bounds:
         # Channel pruning
-        ch_names = [name for name, module in model.named_modules() if isinstance(module, nn.Conv2d)]
+        ch_names = [name for name, _ in _modules_to_prune(model)]
         ch_pruner = ChannelPruner(ch_names, INPUT_SHAPE)
-
-        # Block pruning
-        m_names = [n for n, m in model.named_modules() if type(m).__name__ == "BasicBlock"]
-        m_pruner = ResnetModulePruner(m_names, "shortcut")
-        m_solution = None
 
         optim = _integer_GA(model, **kwargs) if mode == "int" else _binary_GA(model, **kwargs)
         objective = _objective_constrained(model, ch_pruner, finetune, orig_macs, b, w)
         constraint = ChannelConstraint(model, ch_pruner)
         ch_solution = optim.maximize(objective, constraint)
 
-        # Perform block pruning
+        # Block pruning
         if alternate:
+            m_names = [n for n, m in model.named_modules() if type(m).__name__ == "BasicBlock"]
+            m_pruner = ResnetModulePruner(m_names, "shortcut")
+
             optim = _module_GA(len(m_names), **kwargs)
             objective = _objective_constrained(model, m_pruner, finetune, orig_macs, b, w)
             m_solution = optim.maximize(objective, None)
@@ -266,9 +264,7 @@ def _objective_constrained(
 
 
 def _integer_GA(model: nn.Module, **kwargs) -> Optimizer:
-    bounds = [
-        (0, len(module.weight) - 1) for module in model.modules() if isinstance(module, nn.Conv2d)
-    ]
+    bounds = [(0, len(module.weight) - 1) for _, module in _modules_to_prune(model)]
     pop_size = kwargs.get("pop_size", 100)
     ind_size = len(bounds)
 
@@ -287,9 +283,7 @@ def _integer_GA(model: nn.Module, **kwargs) -> Optimizer:
 
 def _binary_GA(model: nn.Module, **kwargs) -> Optimizer:
     pop_size = kwargs.get("pop_size", 100)
-    ind_size = sum(
-        [len(module.weight) for module in model.modules() if isinstance(module, nn.Conv2d)]
-    )
+    ind_size = sum([len(module.weight) for _, module in _modules_to_prune(model)])
 
     return BinaryGAOptimizer(
         ind_size=ind_size,
@@ -351,9 +345,17 @@ def _train(model: nn.Module, batch_size) -> nn.Module:
     return model
 
 
-def _reduce_dropout(model: nn.Module, do_decay: float) -> nn.Module:
-    for module in [module for module in model.modules() if isinstance(module, nn.Dropout)]:
-        module.p = max(0, module.p - do_decay)
+def _reduce_dropout(model: nn.Module, do_decay: Union[float, Iterable]) -> nn.Module:
+    dropouts = [module for module in model.modules() if isinstance(module, nn.Dropout)]
+
+    try:
+        _ = iter(do_decay)
+        decays = do_decay
+    except:
+        decays = [do_decay] * len(dropouts)
+
+    for dropout, decay in zip(dropouts, decays):
+        dropout.p = max(0, dropout.p - decay)
 
     return model
 
@@ -370,3 +372,11 @@ def _choose_best(
     sol = ch_sol if m_sol is None or ch_sol.fitness.values[0] > m_sol.fitness.values[0] else m_sol
 
     return pr.prune(model, sol), sol
+
+
+def _modules_to_prune(model: nn.Module) -> Iterable[Tuple[str, nn.Module]]:
+    last_layer = list(model.modules())[-1]
+
+    for name, module in model.named_modules():
+        if isinstance(module, (nn.Conv2d, nn.Linear)) and module is not last_layer:
+            yield name, module
