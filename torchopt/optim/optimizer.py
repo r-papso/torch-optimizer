@@ -99,10 +99,10 @@ class GAOptimizer(Optimizer):
                 off1, off2 = self._crossover(self._population)
                 off1, off2 = self._mutation(off1), self._mutation(off2)
 
-                if constraint is None or (constraint.feasible(off1) and off1 not in new_pop):
+                if (constraint is None or constraint.feasible(off1)) and off1 not in new_pop:
                     new_pop.append(off1)
 
-                if constraint is None or (constraint.feasible(off2) and off2 not in new_pop):
+                if (constraint is None or constraint.feasible(off2)) and off2 not in new_pop:
                     new_pop.append(off2)
 
             self._population = new_pop
@@ -242,7 +242,7 @@ class BinaryGAOptimizer(GAOptimizer):
                 p = (i + 1) / self._pop_size
                 ind = ind_cls([random.random() <= p for _ in range(self._ind_size)])
 
-                if constraint is None or (constraint.feasible(ind) and ind not in pop):
+                if (constraint is None or constraint.feasible(ind)) and ind not in pop:
                     pop.append(ind)
 
                 if len(pop) == self._pop_size:
@@ -313,7 +313,7 @@ class IntegerGAOptimizer(GAOptimizer):
 
                 ind = ind_cls(ind_content)
 
-                if constraint is None or (constraint.feasible(ind) and ind not in pop):
+                if (constraint is None or constraint.feasible(ind)) and ind not in pop:
                     pop.append(ind)
 
                 if len(pop) == self._pop_size:

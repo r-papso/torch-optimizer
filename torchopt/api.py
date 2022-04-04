@@ -58,8 +58,8 @@ def vgg_best(
         model = _reduce_dropout(model, dropout_decay)
         model = _train(model, 256)
 
-        torch.save(model, os.path.join(output_dir, f"vgg_best_model_{i}.pth"))
-        _save_solution(solution, os.path.join(output_dir, f"vgg_best_solution_{i}.txt"))
+        torch.save(model, os.path.join(output_dir, f"vgg_best_{i}.pth"))
+        _save_solution(solution, os.path.join(output_dir, f"vgg_best_{i}.txt"))
         i += 1
 
         if not iterative or solution.fitness.values[0] <= kwargs.get("min_improve", 1.15):
@@ -100,8 +100,8 @@ def vgg_constrained(
         model = pruner.prune(model, solution)
         model = _reduce_dropout(model, dropout_decay)
         model = _train(model, 256)
-        torch.save(model, os.path.join(output_dir, f"vgg_constrained_model_{b}.pth"))
-        _save_solution(solution, os.path.join(output_dir, f"vgg_constrained_solution_{b}.txt"))
+        torch.save(model, os.path.join(output_dir, f"vgg_constrained_{b}.pth"))
+        _save_solution(solution, os.path.join(output_dir, f"vgg_constrained_{b}.txt"))
 
     return model
 
@@ -148,8 +148,8 @@ def resnet_best(
         model, solution = _choose_best(model, ch_solution, ch_pruner, m_solution, m_pruner)
         model = _train(model, 128)
 
-        torch.save(model, os.path.join(output_dir, f"resnet_best_model_{i}.pth"))
-        _save_solution(solution, os.path.join(output_dir, f"resnet_best_solution_{i}.txt"))
+        torch.save(model, os.path.join(output_dir, f"resnet_best_{i}.pth"))
+        _save_solution(solution, os.path.join(output_dir, f"resnet_best_{i}.txt"))
         i += 1
 
         if not iterative or solution.fitness.values[0] <= kwargs.get("min_improve", 1.15):
@@ -197,8 +197,8 @@ def resnet_constrained(
         model, solution = _choose_best(model, ch_solution, ch_pruner, m_solution, m_pruner)
         model = _train(model, 128)
 
-        torch.save(model, os.path.join(output_dir, f"resnet_constrained_model_{b}.pth"))
-        _save_solution(solution, os.path.join(output_dir, f"resnet_constrained_solution_{b}.txt"))
+        torch.save(model, os.path.join(output_dir, f"resnet_constrained_{b}.pth"))
+        _save_solution(solution, os.path.join(output_dir, f"resnet_constrained_{b}.txt"))
 
     return model
 
@@ -206,7 +206,7 @@ def resnet_constrained(
 def _optimization_data() -> Tuple[Iterable, Iterable, Iterable]:
     train_loader, val_loader, test_loader = utils.cifar10_loaders(
         folder=os.path.join(os.getcwd(), "data", "cifar10"),
-        batch_size=256,
+        batch_size=512,
         val_size=5000,
         train_transform=Compose([ToTensor()]),
         test_transform=Compose([ToTensor()]),
@@ -362,7 +362,7 @@ def _reduce_dropout(model: nn.Module, do_decay: Union[float, Iterable]) -> nn.Mo
 
 def _save_solution(solution: Any, out_f: str) -> None:
     with open(out_f, "a") as dest:
-        dest.write(f"{','.join([str(x) for x in solution])}\n")
+        dest.write(f"{','.join([str(x) for x in solution])}")
 
 
 def _choose_best(
