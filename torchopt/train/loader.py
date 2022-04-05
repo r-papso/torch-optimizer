@@ -15,5 +15,8 @@ class DataLoaderWrapper:
 
         self._cahced = None
 
+    def __len__(self):
+        return len(self._loader)
+
     def last_batch(self) -> Tuple[Tensor, Tensor]:
         return self._cahced
