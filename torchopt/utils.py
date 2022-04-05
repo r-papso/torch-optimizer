@@ -161,13 +161,15 @@ def _log_train(engine: Engine, metric_dict: dict, optimizer: Optimizer) -> None:
     epoch = engine.state.epoch
     metrics = engine.state.metrics
     acc = metrics["accuracy"]
-    loss = metrics["loss"]
+    # loss = metrics["loss"]
     time = datetime.now().strftime("%H:%M:%S")
     lr = optimizer.param_groups[0]["lr"]
 
-    metric_dict[epoch] = {"train_acc": acc, "train_loss": loss}
+    # metric_dict[epoch] = {"train_acc": acc, "train_loss": loss}
+    metric_dict[epoch] = {"train_acc": acc}
     print(
-        f"{time} - Epoch: {epoch:04d} Train accuracy: {acc:.4f} Train loss: {loss:.4f} LR: {lr:.8f}"
+        # f"{time} - Epoch: {epoch:04d} Train accuracy: {acc:.4f} Train loss: {loss:.4f} LR: {lr:.8f}"
+        f"{time} - Epoch: {epoch:04d} Train accuracy: {acc:.4f} LR: {lr:.8f}"
     )
 
 
@@ -177,11 +179,13 @@ def _log_test(engine: Engine, evaluator: Engine, test_set: Iterable, metric_dict
     epoch = engine.state.epoch
     metrics = evaluator.state.metrics
     acc = metrics["accuracy"]
-    loss = metrics["loss"]
+    # loss = metrics["loss"]
     time = datetime.now().strftime("%H:%M:%S")
 
-    metric_dict[epoch].update({"test_acc": acc, "test_loss": loss})
-    print(f"{time} - Epoch: {epoch:04d} Test accuracy:  {acc:.4f} Test loss:  {loss:.4f}")
+    # metric_dict[epoch].update({"test_acc": acc, "test_loss": loss})
+    metric_dict[epoch].update({"test_acc": acc})
+    # print(f"{time} - Epoch: {epoch:04d} Test accuracy:  {acc:.4f} Test loss:  {loss:.4f}")
+    print(f"{time} - Epoch: {epoch:04d} Test accuracy:  {acc:.4f}")
 
 
 def _log_time(engine: Engine) -> None:
