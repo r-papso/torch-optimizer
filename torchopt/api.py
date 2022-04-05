@@ -328,16 +328,16 @@ def _train(model: nn.Module, teacher: nn.Module, batch_size: int) -> nn.Module:
     if os.path.exists(checkpoint):
         shutil.rmtree(checkpoint)
 
-    train_set, _, test_set = _train_data(batch_size)
+    train, _, test = _train_data(batch_size)
     optimizer = SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=0.0001)
-    loss_fn = nn.CrossEntropyLoss() if teacher is None else KDLoss(teacher, train_set, DEVICE)
+    loss_fn = nn.CrossEntropyLoss() if teacher is None else KDLoss(teacher, train, test, DEVICE)
     torch_lr_scheduler = CosineAnnealingLR(optimizer, 50)
     scheduler = LRScheduler(torch_lr_scheduler)
 
     _ = utils.train_ignite(
         model=model,
-        train_set=train_set,
-        test_set=test_set,
+        train_set=train,
+        test_set=test,
         optimizer=optimizer,
         loss_fn=loss_fn,
         epochs=50,

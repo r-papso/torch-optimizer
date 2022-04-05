@@ -13,5 +13,7 @@ class DataLoaderWrapper:
             self._cahced = batch
             yield batch
 
+        self._cahced = None
+
     def last_batch(self) -> Tuple[Tensor, Tensor]:
         return self._cahced

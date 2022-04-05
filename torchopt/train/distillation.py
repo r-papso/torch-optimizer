@@ -8,16 +8,26 @@ from .loader import DataLoaderWrapper
 
 
 class KDLoss(nn.Module):
-    def __init__(self, teacher: nn.Module, loader: DataLoaderWrapper, device: str) -> None:
+    def __init__(
+        self,
+        teacher: nn.Module,
+        train_loader: DataLoaderWrapper,
+        test_loader: DataLoaderWrapper,
+        device: str,
+    ) -> None:
         super().__init__()
 
-        self._loader = loader
+        self._train = train_loader
+        self._test = test_loader
         self._teacher = self._init_teacher(teacher)
         self._device = device
         self._kl_loss = nn.KLDivLoss(reduction="batchmean", log_target=True)
 
     def forward(self, inputs: Tensor, targets: Tensor) -> Tensor:
-        data, labels = self._loader.last_batch()
+        assert (self._train.last_batch() is None) != (self._test.last_batch() is None)
+
+        loader = self._train if self._test.last_batch() is None else self._test
+        data, labels = loader.last_batch()
         data, labels = data.to(self._device), labels.to(self._device)
 
         assert torch.all(labels == targets)
