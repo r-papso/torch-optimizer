@@ -1,5 +1,7 @@
 from copy import deepcopy
-from torch import nn, Tensor
+
+import torch
+from torch import Tensor, nn
 from torch.nn import functional as F
 
 from .loader import DataLoaderWrapper
@@ -18,7 +20,7 @@ class KDLoss(nn.Module):
         data, labels = self._loader.last_batch()
         data, labels = data.to(self._device), labels.to(self._device)
 
-        assert all(labels == targets)
+        assert torch.all(labels == targets)
 
         preds = self._teacher(data)
         preds_log = F.log_softmax(preds, dim=1)
