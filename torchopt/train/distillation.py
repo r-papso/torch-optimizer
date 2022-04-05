@@ -22,21 +22,11 @@ class KDLoss(nn.Module):
         self._teacher = self._init_teacher(teacher)
         self._device = device
         self._kl_loss = nn.KLDivLoss(reduction="batchmean", log_target=True)
-        self._last_test, self._last_train = None, None
 
     def forward(self, inputs: Tensor, targets: Tensor) -> Tensor:
-        batch = None
-
-        if self._last_train is not self._train.cahced_batch():
-            batch = self._train.cahced_batch()
-            self._last_train = batch
-        elif self._last_test is not self._test.cahced_batch():
-            batch = self._test.cahced_batch()
-            self._last_test = batch
-        else:
-            raise ValueError("Both train and test batches were already used")
-
-        data, labels = batch[0].to(self._device), batch[1].to(self._device)
+        loader = self._train if self._train.timestamp() > self._test.timestamp() else self._test
+        data, labels = loader.cahced_batch()
+        data, labels = data.to(self._device), labels.to(self._device)
 
         assert torch.all(labels == targets)
 
