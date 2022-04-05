@@ -87,7 +87,8 @@ def train_ignite(
         model, optimizer, loss_fn, device=device, output_transform=_custom_output_transform
     )
 
-    val_metrics = {"accuracy": metrics.Accuracy(), "loss": metrics.Loss(loss_fn)}
+    # val_metrics = {"accuracy": metrics.Accuracy(), "loss": metrics.Loss(loss_fn)}
+    val_metrics = {"accuracy": metrics.Accuracy()}
     evaluator = create_supervised_evaluator(model, metrics=val_metrics, device=device)
 
     for name, metric in val_metrics.items():
