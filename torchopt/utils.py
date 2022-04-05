@@ -15,6 +15,8 @@ from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from torchvision.datasets import CIFAR10
 
+from .train.loader import DataLoaderWrapper
+
 PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(PACKAGE_DIR, "model"))
 
@@ -39,7 +41,7 @@ def cifar10_loaders(
     val_size: int,
     train_transform: Callable,
     test_transform: Callable,
-) -> Tuple[DataLoader, ...]:
+) -> Tuple[DataLoaderWrapper, ...]:
     train_set = CIFAR10(download=True, root=folder, transform=train_transform, train=True)
     test_set = CIFAR10(download=False, root=folder, transform=test_transform, train=False)
 
@@ -54,18 +56,15 @@ def cifar10_loaders(
     val_loader = DataLoader(train_set, batch_size=batch_size, sampler=val_sampler)
     test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False)
 
-    return train_loader, val_loader, test_loader
+    return (
+        DataLoaderWrapper(train_loader),
+        DataLoaderWrapper(val_loader),
+        DataLoaderWrapper(test_loader),
+    )
 
 
-def loader_to_memory(data_loader: DataLoader, device: str) -> Iterable[Tuple[Tensor, Tensor]]:
-    data = []
-
-    for inputs, labels in data_loader:
-        inputs = inputs.to(device)
-        labels = labels.to(device)
-        data.append((inputs, labels))
-
-    return data
+def loader_to_memory(data_loader: Iterable, device: str) -> Iterable[Tuple[Tensor, Tensor]]:
+    return [(inputs.to(device), labels.to(device)) for inputs, labels in data_loader]
 
 
 def train_ignite(
@@ -122,11 +121,7 @@ def train(
 
     while iters < iterations:
         for inputs, labels in data:
-            if inputs.device != device:
-                inputs = inputs.to(device)
-
-            if labels.device != device:
-                labels = labels.to(device)
+            inputs, labels = inputs.to(device), labels.to(device)
 
             optimizer.zero_grad()
             outputs = model(inputs)
@@ -147,11 +142,7 @@ def evaluate(model: nn.Module, data: Iterable[Tuple[Tensor, Tensor]], device: st
 
     with torch.no_grad():
         for inputs, labels in data:
-            if inputs.device != device:
-                inputs = inputs.to(device)
-
-            if labels.device != device:
-                labels = labels.to(device)
+            inputs, labels = inputs.to(device), labels.to(device)
 
             outputs = model(inputs)
             _, pred = torch.max(outputs.data, 1)

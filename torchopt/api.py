@@ -22,6 +22,7 @@ from .optim.objective import (
 )
 from .optim.optimizer import BinaryGAOptimizer, IntegerGAOptimizer, Optimizer
 from .prune.pruner import ChannelPruner, Pruner, ResnetModulePruner
+from .train.distillation import KDLoss
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 INPUT_SHAPE = (1, 3, 32, 32)
@@ -33,6 +34,7 @@ def vgg_best(
     output_dir: str,
     dropout_decay: Union[float, Iterable] = 0.0,
     iterative: bool = False,
+    distille: bool = False,
     **kwargs,
 ) -> nn.Module:
     if mode not in ["int", "binary"]:
@@ -56,7 +58,7 @@ def vgg_best(
 
         model = pruner.prune(model, solution)
         model = _reduce_dropout(model, dropout_decay)
-        model = _train(model, 256)
+        model = _train(model, utils.get_vgg16() if distille else None, 256)
 
         torch.save(model, os.path.join(output_dir, f"vgg_best_{i}.pth"))
         _save_solution(solution, os.path.join(output_dir, f"vgg_best_{i}.txt"))
@@ -74,6 +76,7 @@ def vgg_constrained(
     bounds: Iterable,
     output_dir: str,
     dropout_decay: Union[float, Iterable] = 0.0,
+    distille: bool = False,
     **kwargs,
 ) -> nn.Module:
     if mode not in ["int", "binary"]:
@@ -99,7 +102,7 @@ def vgg_constrained(
 
         model = pruner.prune(model, solution)
         model = _reduce_dropout(model, dropout_decay)
-        model = _train(model, 256)
+        model = _train(model, utils.get_vgg16() if distille else None, 256)
         torch.save(model, os.path.join(output_dir, f"vgg_constrained_{b}.pth"))
         _save_solution(solution, os.path.join(output_dir, f"vgg_constrained_{b}.txt"))
 
@@ -112,6 +115,7 @@ def resnet_best(
     output_dir: str,
     iterative: bool = False,
     alternate: bool = True,
+    distille: bool = False,
     **kwargs,
 ) -> nn.Module:
     if mode not in ["int", "binary"]:
@@ -146,7 +150,7 @@ def resnet_best(
             m_solution = optim.maximize(objective, None)
 
         model, solution = _choose_best(model, ch_solution, ch_pruner, m_solution, m_pruner)
-        model = _train(model, 128)
+        model = _train(model, utils.get_resnet56() if distille else None, 128)
 
         torch.save(model, os.path.join(output_dir, f"resnet_best_{i}.pth"))
         _save_solution(solution, os.path.join(output_dir, f"resnet_best_{i}.txt"))
@@ -159,7 +163,13 @@ def resnet_best(
 
 
 def resnet_constrained(
-    finetune: bool, mode: str, bounds: Iterable, output_dir: str, alternate: bool = True, **kwargs
+    finetune: bool,
+    mode: str,
+    bounds: Iterable,
+    output_dir: str,
+    alternate: bool = True,
+    distille: bool = False,
+    **kwargs,
 ) -> nn.Module:
     if mode not in ["int", "binary"]:
         raise ValueError("Invalid mode {mode}, currently supported modes are: ['int, 'binary']")
@@ -195,7 +205,7 @@ def resnet_constrained(
             m_solution = optim.maximize(objective, None)
 
         model, solution = _choose_best(model, ch_solution, ch_pruner, m_solution, m_pruner)
-        model = _train(model, 128)
+        model = _train(model, utils.get_resnet56() if distille else None, 128)
 
         torch.save(model, os.path.join(output_dir, f"resnet_constrained_{b}.pth"))
         _save_solution(solution, os.path.join(output_dir, f"resnet_constrained_{b}.txt"))
@@ -312,7 +322,7 @@ def _module_GA(ind_size: int, **kwargs) -> Optimizer:
     )
 
 
-def _train(model: nn.Module, batch_size) -> nn.Module:
+def _train(model: nn.Module, teacher: nn.Module, batch_size: int) -> nn.Module:
     checkpoint = os.path.join(os.getcwd(), "tmp", "checkpoint")
 
     if os.path.exists(checkpoint):
@@ -320,7 +330,7 @@ def _train(model: nn.Module, batch_size) -> nn.Module:
 
     train_set, _, test_set = _train_data(batch_size)
     optimizer = SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=0.0001)
-    loss_fn = nn.CrossEntropyLoss()
+    loss_fn = nn.CrossEntropyLoss() if teacher is None else KDLoss(teacher, train_set, DEVICE)
     torch_lr_scheduler = CosineAnnealingLR(optimizer, 50)
     scheduler = LRScheduler(torch_lr_scheduler)
 
