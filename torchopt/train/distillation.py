@@ -14,6 +14,7 @@ class KDLoss(nn.Module):
         train_loader: DataLoaderWrapper,
         test_loader: DataLoaderWrapper,
         device: str,
+        T: float
     ) -> None:
         super().__init__()
 
@@ -22,6 +23,7 @@ class KDLoss(nn.Module):
         self._teacher = self._init_teacher(teacher)
         self._device = device
         self._kl_loss = nn.KLDivLoss(reduction="batchmean", log_target=True)
+        self._T = T
 
     def forward(self, inputs: Tensor, targets: Tensor) -> Tensor:
         loader = self._train if self._train.timestamp() > self._test.timestamp() else self._test
@@ -31,8 +33,8 @@ class KDLoss(nn.Module):
         assert torch.all(labels == targets)
 
         preds = self._teacher(data)
-        preds_log = F.log_softmax(preds, dim=1)
-        inputs_log = F.log_softmax(inputs, dim=1)
+        preds_log = F.log_softmax(preds / self._T, dim=1)
+        inputs_log = F.log_softmax(inputs / self._T, dim=1)
 
         return self._kl_loss(inputs_log, preds_log)
 
