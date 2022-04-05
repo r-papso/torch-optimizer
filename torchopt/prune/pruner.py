@@ -67,6 +67,10 @@ class ResnetModulePruner(ModulePruner):
         if isinstance(shortcut, nn.Sequential) and len(list(shortcut.children())) == 0:
             return super()._prune_module(model, name)
 
+        # Shortcut connection contains only identity module
+        if isinstance(shortcut, nn.Identity):
+            return super()._prune_module(model, name)
+
         p_name, ch_name = name.rsplit(".", 1)
         setattr(model.get_submodule(p_name), ch_name, shortcut)
         return model
