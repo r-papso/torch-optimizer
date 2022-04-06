@@ -219,7 +219,7 @@ class MacsPenalty(ModelObjective):
     Number of MACs of pruned model is normalized according to number of MACs of the original 
     unpruned model. Also weight can be specified when used in composite objective function. 
     Final value of the objective function is given by:
-    f = max(0, (MACs_pruned - B) / (MACs_original - B)) 
+    f = weight * max(0, (MACs_pruned - B) / (MACs_original - B)) 
     where B is maximum allowed number of MACs for the penalty function.
     """
 
@@ -265,19 +265,17 @@ class MacsPenalty(ModelObjective):
         return (penalty_weighted,)
 
 
-class PrunedRatioPenalty(ModelObjective):
-    """Represents penalty function for exceeding maximum or minimum of allowed pruned ratio.
+class SizePenalty(ModelObjective):
+    """Represents penalty function for exceeding maximum or minimum of allowed model size.
     
-    Pruned ratio is computed only within layers subjected to pruning. Pruned ratio is computed by 
-    dividing total number of weights in pruned layers by total number of weights in these layers 
-    before pruning, i. e.: f = sum(pruned_weights in each layer) / sum(orig_weights in each layer).
+    Size is computed by dividing total number of pruned model's weights by total number of 
+    original model's weights. i. e.: f = weight * (num_weights_pruned / num_weights_orig).
     """
 
     def __init__(
         self,
         model: nn.Module,
         pruner: Pruner,
-        module_names: Iterable[str],
         weight: float,
         lower_bound: float,
         upper_bound: float,
@@ -287,29 +285,27 @@ class PrunedRatioPenalty(ModelObjective):
         Args:
             model (nn.Module): Model to be pruned.
             pruner (Pruner): Pruner used for pruning the model.
-            module_names (Iterable[str]): Names of layers to be pruned.
             weight (float): Can be used to specify relative weight if used in composite function.
-            lower_bound (float): Value between (0, upper_bound) specifying minimum pruned ratio.
-            upper_bound (float): Value between (lower_bound, 1) specifying maximum pruned ratio.
+            lower_bound (float): Value between (0, upper_bound) specifying minimum allowed size.
+            upper_bound (float): Value between (lower_bound, 1) specifying maximum allowed size.
         """
         super().__init__(model, pruner)
 
-        self._names = module_names
         self._weight = weight
         self._lbound = lower_bound
         self._ubound = upper_bound
-        self._orig_nparams = self._compute_nparams(self._model)
+        self._orig_size = self._count_params(self._model)
 
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
         model = self._get_pruned_model(solution)
-        nparams = self._compute_nparams(model) / self._orig_nparams
+        size = self._count_params(model) / self._orig_size
 
-        if nparams < self._lbound:
-            return (self._weight * (self._lbound - nparams),)
-        elif nparams > self._ubound:
-            return (self._weight * (nparams - self._ubound),)
+        if size < self._lbound:
+            return (self._weight * (self._lbound - size),)
+        elif size > self._ubound:
+            return (self._weight * (size - self._ubound),)
         else:
             return (0.0,)
 
-    def _compute_nparams(self, model: nn.Module) -> int:
-        return sum([model.get_submodule(name).weight.data.numel() for name in self._names])
+    def _count_params(self, model: nn.Module):
+        return sum(p.numel() for p in model.parameters() if p.requires_grad)
