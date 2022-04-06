@@ -35,6 +35,7 @@ def vgg_best(
     dropout_decay: Union[float, Iterable] = 0.0,
     iterative: bool = False,
     distille: bool = False,
+    reset_params: bool = False,
     **kwargs,
 ) -> nn.Module:
     if mode not in ["int", "binary"]:
@@ -58,6 +59,7 @@ def vgg_best(
 
         model = pruner.prune(model, solution)
         model = _reduce_dropout(model, dropout_decay)
+        model = _reset_parameters(model) if reset_params else model
         model = _train(model, utils.get_vgg16() if distille else None, 256, **kwargs)
 
         torch.save(model, os.path.join(output_dir, f"vgg_best_{i}.pth"))
@@ -77,6 +79,7 @@ def vgg_constrained(
     output_dir: str,
     dropout_decay: Union[float, Iterable] = 0.0,
     distille: bool = False,
+    reset_params: bool = False,
     **kwargs,
 ) -> nn.Module:
     if mode not in ["int", "binary"]:
@@ -102,7 +105,9 @@ def vgg_constrained(
 
         model = pruner.prune(model, solution)
         model = _reduce_dropout(model, dropout_decay)
+        model = _reset_parameters(model) if reset_params else model
         model = _train(model, utils.get_vgg16() if distille else None, 256, **kwargs)
+
         torch.save(model, os.path.join(output_dir, f"vgg_constrained_{b}.pth"))
         _save_solution(solution, os.path.join(output_dir, f"vgg_constrained_{b}.txt"))
 
@@ -116,6 +121,7 @@ def resnet_best(
     iterative: bool = False,
     alternate: bool = True,
     distille: bool = False,
+    reset_params: bool = False,
     **kwargs,
 ) -> nn.Module:
     if mode not in ["int", "binary"]:
@@ -150,6 +156,7 @@ def resnet_best(
             m_solution = optim.maximize(objective, None)
 
         model, solution = _choose_best(model, ch_solution, ch_pruner, m_solution, m_pruner)
+        model = _reset_parameters(model) if reset_params else model
         model = _train(model, utils.get_resnet56() if distille else None, 128, **kwargs)
 
         torch.save(model, os.path.join(output_dir, f"resnet_best_{i}.pth"))
@@ -169,6 +176,7 @@ def resnet_constrained(
     output_dir: str,
     alternate: bool = True,
     distille: bool = False,
+    reset_params: bool = False,
     **kwargs,
 ) -> nn.Module:
     if mode not in ["int", "binary"]:
@@ -205,6 +213,7 @@ def resnet_constrained(
             m_solution = optim.maximize(objective, None)
 
         model, solution = _choose_best(model, ch_solution, ch_pruner, m_solution, m_pruner)
+        model = _reset_parameters(model) if reset_params else model
         model = _train(model, utils.get_resnet56() if distille else None, 128, **kwargs)
 
         torch.save(model, os.path.join(output_dir, f"resnet_constrained_{b}.pth"))
@@ -328,12 +337,19 @@ def _train(model: nn.Module, teacher: nn.Module, batch_size: int, **kwargs) -> n
     if os.path.exists(checkpoint):
         shutil.rmtree(checkpoint)
 
-    train, _, test = _train_data(batch_size)
-    optimizer = SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=0.0001)
+    lr = kwargs.get("lr", 0.01)
+    momentum = kwargs.get("momentum", 0.9)
+    weight_decay = kwargs.get("weight_decay", 0.0001)
+    epochs = kwargs.get("epochs", 50)
+
     T = kwargs.get("T", 1.0)
+
+    train, _, test = _train_data(batch_size)
+    optimizer = SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
     loss_fn = nn.CrossEntropyLoss() if teacher is None else KDLoss(teacher, train, test, DEVICE, T)
-    torch_lr_scheduler = CosineAnnealingLR(optimizer, 50)
-    scheduler = LRScheduler(torch_lr_scheduler)
+
+    lr_scheduler = kwargs.get("lr_scheduler", CosineAnnealingLR(optimizer, epochs))
+    scheduler = LRScheduler(lr_scheduler)
 
     _ = utils.train_ignite(
         model=model,
@@ -341,7 +357,7 @@ def _train(model: nn.Module, teacher: nn.Module, batch_size: int, **kwargs) -> n
         test_set=test,
         optimizer=optimizer,
         loss_fn=loss_fn,
-        epochs=50,
+        epochs=epochs,
         checkpoint_path=checkpoint,
         lr_scheduler=scheduler,
     )
@@ -391,3 +407,9 @@ def _modules_to_prune(model: nn.Module) -> Iterable[Tuple[str, nn.Module]]:
     for name, module in model.named_modules():
         if isinstance(module, (nn.Conv2d, nn.Linear)) and module is not last_layer:
             yield name, module
+
+
+def _reset_parameters(model: nn.Module) -> nn.Module:
+    for module in model.modules():
+        if hasattr(module, "reset_parameters"):
+            module.reset_parameters()
