@@ -413,3 +413,5 @@ def _reset_parameters(model: nn.Module) -> nn.Module:
     for module in model.modules():
         if hasattr(module, "reset_parameters"):
             module.reset_parameters()
+
+    return model
