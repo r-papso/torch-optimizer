@@ -38,8 +38,29 @@ def vgg_best(
     reset_params: bool = False,
     **kwargs,
 ) -> nn.Module:
+    """Performs pruning of the VGG16 to find best compromise between accuracy and model's 
+    number of MACs. Optimization problem in this case is given by:
+
+    max : accuracy_pruned / accuracy_orig + weight * (1 - MACs_pruned / MACs_orig)
+
+    Args:
+        finetune (bool): Determines whether finetune pruned model during one epoch before measuring 
+            its accuracy.
+        mode (str): Determines type of the optimization problem, one of ['int', 'binary'].
+        output_dir (str): Path to the folder where pruned models will be stored.
+        dropout_decay (Union[float, Iterable], optional): Reduction of dropout probability in 
+            dropout layers during each step of the pruning. Defaults to 0.0.
+        iterative (bool, optional): Determines whether perform iterative pruning. Defaults to False.
+        distille (bool, optional): Determines whether to use Knowledge Distillation for model 
+            finetuning. Defaults to False.
+        reset_params (bool, optional): Determines whether to reset weights' values after pruning, 
+            i. e. train from scratch after pruning. Defaults to False.
+
+    Returns:
+        nn.Module: Pruned VGG16 model.
+    """
     if mode not in ["int", "binary"]:
-        raise ValueError("Invalid mode {mode}, currently supported modes are: ['int, 'binary']")
+        raise ValueError(f"Invalid mode {mode}, currently supported modes are: ['int, 'binary']")
 
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
@@ -82,8 +103,34 @@ def vgg_constrained(
     reset_params: bool = False,
     **kwargs,
 ) -> nn.Module:
+    """Performs pruning of the VGG16 to iteratively prune model according to specified MACs 
+    percentage upper bounds. MACs percentage upper bounds should be in range (0, 1) and define 
+    maximum allowed percentage of MACs according to MACs of the original unpruned model in each
+    step of the iterative pruining. Optimization problem in this case is given by:
+
+    max : accuracy_pruned / accuracy_orig - weight * max(0, (MACs_pruned - B_t) / (MACs_orig - B_t))
+
+    where B_t represents MACs percentage upper bound at t-th iteration of the pruning.
+
+    Args:
+        finetune (bool): Determines whether finetune pruned model during one epoch before measuring 
+            its accuracy.
+        mode (str): Determines type of the optimization problem, one of ['int', 'binary'].
+        bounds (Iterable): MACs percentage upper bounds according to MACs of the original unpruned 
+            model, each bound should be in range (0, 1).
+        output_dir (str): Path to the folder where pruned models will be stored.
+        dropout_decay (Union[float, Iterable], optional): Reduction of dropout probability in 
+            dropout layers during each step of the pruning. Defaults to 0.0.
+        distille (bool, optional): Determines whether to use Knowledge Distillation for model 
+            finetuning. Defaults to False.
+        reset_params (bool, optional): Determines whether to reset weights' values after pruning, 
+            i. e. train from scratch after pruning. Defaults to False.
+
+    Returns:
+        nn.Module: Pruned VGG16 model.
+    """
     if mode not in ["int", "binary"]:
-        raise ValueError("Invalid mode {mode}, currently supported modes are: ['int, 'binary']")
+        raise ValueError(f"Invalid mode {mode}, currently supported modes are: ['int, 'binary']")
 
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
@@ -124,8 +171,29 @@ def resnet_best(
     reset_params: bool = False,
     **kwargs,
 ) -> nn.Module:
+    """Performs pruning of the ResNet56 to find best compromise between accuracy and model's 
+    number of MACs. Optimization problem in this case is given by:
+
+    max : accuracy_pruned / accuracy_orig + weight * (1 - MACs_pruned / MACs_orig)
+
+    Args:
+        finetune (bool): Determines whether finetune pruned model during one epoch before measuring 
+            its accuracy.
+        mode (str): Determines type of the optimization problem, one of ['int', 'binary'].
+        output_dir (str): Path to the folder where pruned models will be stored.
+        iterative (bool, optional): Determines whether perform iterative pruning. Defaults to False.
+        alternate (bool, optional): Determines whether to alternatively perform channel and block 
+            pruning. Defaults to True.
+        distille (bool, optional): Determines whether to use Knowledge Distillation for model 
+            finetuning. Defaults to False.
+        reset_params (bool, optional): Determines whether to reset weights' values after pruning, 
+            i. e. train from scratch after pruning. Defaults to False.
+
+    Returns:
+        nn.Module: Pruned ResNet56 model.
+    """
     if mode not in ["int", "binary"]:
-        raise ValueError("Invalid mode {mode}, currently supported modes are: ['int, 'binary']")
+        raise ValueError(f"Invalid mode {mode}, currently supported modes are: ['int, 'binary']")
 
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
@@ -179,8 +247,34 @@ def resnet_constrained(
     reset_params: bool = False,
     **kwargs,
 ) -> nn.Module:
+    """Performs pruning of the ResNet56 to iteratively prune model according to specified MACs 
+    percentage upper bounds. MACs percentage upper bounds should be in range (0, 1) and define 
+    maximum allowed percentage of MACs according to MACs of the original unpruned model in each
+    step of the iterative pruining. Optimization problem in this case is given by:
+
+    max : accuracy_pruned / accuracy_orig - weight * max(0, (MACs_pruned - B_t) / (MACs_orig - B_t))
+
+    where B_t represents MACs percentage upper bound at t-th iteration of the pruning.
+
+    Args:
+        finetune (bool): Determines whether finetune pruned model during one epoch before measuring 
+            its accuracy.
+        mode (str): Determines type of the optimization problem, one of ['int', 'binary'].
+        bounds (Iterable): MACs percentage upper bounds according to MACs of the original unpruned 
+            model, each bound should be in range (0, 1).
+        output_dir (str): Path to the folder where pruned models will be stored.
+        alternate (bool, optional): Determines whether to alternatively perform channel and block 
+            pruning. Defaults to True.
+        distille (bool, optional): Determines whether to use Knowledge Distillation for model 
+            finetuning. Defaults to False.
+        reset_params (bool, optional): Determines whether to reset weights' values after pruning, 
+            i. e. train from scratch after pruning. Defaults to False.
+
+    Returns:
+        nn.Module: Pruned ResNet56 model.
+    """
     if mode not in ["int", "binary"]:
-        raise ValueError("Invalid mode {mode}, currently supported modes are: ['int, 'binary']")
+        raise ValueError(f"Invalid mode {mode}, currently supported modes are: ['int, 'binary']")
 
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)

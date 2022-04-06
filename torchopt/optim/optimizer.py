@@ -16,19 +16,67 @@ warnings.simplefilter("ignore", RuntimeWarning)
 
 
 class Optimizer(ABC):
+    """Abstract class representing optimization algortihm."""
+
     def __init__(self) -> None:
+        """Ctor."""
         pass
 
     @abstractmethod
     def minimize(self, objective: Objective, constraint: Constraint) -> Any:
+        """Function that minimizes objective function given as a parameter subject to constraints
+        given as a parameter, i. e.:
+
+        min : objective
+        s.t.: constraint
+
+        Args:
+            objective (Objective): Objective function to be minimized.
+            constraint (Constraint): Constraints of the optimization problem.
+
+        Returns:
+            Any: Best found solution.
+        """
         pass
 
     @abstractmethod
     def maximize(self, objective: Objective, constraint: Constraint) -> Any:
+        """Function that maximizes objective function given as a parameter subject to constraints
+        given as a parameter, i. e.:
+
+        max : objective
+        s.t.: constraint
+
+        Args:
+            objective (Objective): Objective function to be maximized.
+            constraint (Constraint): Constraints of the optimization problem.
+
+        Returns:
+            Any: Best found solution.
+        """
         pass
 
 
 class GAOptimizer(Optimizer):
+    """Represents base class for genetic algorithm (GA).
+
+    Genetic algorithm (GA) implementation used to (but not limited to) solving neural 
+    network pruning problem. Neural network pruning can be formulated as optimization 
+    problem to find best subset from the set of network's filters/neurons, i. e.:
+
+    max : accuracy(model(W • M))
+    s.t.: resource(model(W • M)) <= budged
+
+    where W are network's filters/neurons, M is mask produced by optimization, resource 
+    can be any resource we want to reduce (e. g. MACs, latency, model size, ...) and 
+    budget is our desired upper bound of the resource we want to reduce.
+
+    This GA implementation uses basic principles and techniques to perform evolutionary
+    process. Tournament selection is used to select two individuals for the crossover
+    operation. Elite set is kept to ensure quality of the new population. Crossover and
+    mutation operations are defined in specific implementations of this abstract class.
+    """
+
     def __init__(
         self,
         ind_size: int,
@@ -43,6 +91,21 @@ class GAOptimizer(Optimizer):
         init_pop: Iterable[Any] = None,
         verbose: bool = True,
     ) -> None:
+        """Ctor.
+
+        Args:
+            ind_size (int): Size of the individual.
+            pop_size (int): Size of the population.
+            elite_num (int): Elite set size in range <0, pop_size).
+            tourn_size (int): Tournament size in range <2, pop_size).
+            n_gen (int): Number of produced generations.
+            mutp (float): Mutation probablity of new individual.
+            mut_indp (float): Probability of mutating single bit of new individual.
+            cx_indp (float): Probability used in uniform crossover.
+            early_stop (int, optional): Early stopping. Defaults to -1.
+            init_pop (Iterable[Any], optional): Initial population. Defaults to None.
+            verbose (bool, optional): Verbosity of the output. Defaults to True.
+        """
         super().__init__()
 
         self._ind_size = ind_size
@@ -197,6 +260,20 @@ class GAOptimizer(Optimizer):
 
 
 class BinaryGAOptimizer(GAOptimizer):
+    """GA implementation modelling binary optimization problem.
+
+    Genetic algorithm (GA) implementation used to (but not limited to) solving neural 
+    network pruning problem defined as binary optimization problem. Number of decision
+    variables in this problem is equal to number of filters/neurons in the network. 
+    
+    If value of the decision variable xi = 0, i-th filter/neuron will be pruned, if xi = 1, 
+    i-th filter/neuron will be preserved in the network.
+
+    In this implementation, crossover operation is performed in uniform fashion (uniform 
+    crossover), mutation operation is performed by randomly flipping the elements of the
+    individual, i. e.: xi = !xi_actual.
+    """
+
     def __init__(
         self,
         ind_size: int,
@@ -211,6 +288,21 @@ class BinaryGAOptimizer(GAOptimizer):
         init_pop: Iterable[Any] = None,
         verbose: bool = True,
     ) -> None:
+        """Ctor.
+
+        Args:
+            ind_size (int): Size of the individual.
+            pop_size (int): Size of the population.
+            elite_num (int): Elite set size in range <0, pop_size).
+            tourn_size (int): Tournament size in range <2, pop_size).
+            n_gen (int): Number of produced generations.
+            mutp (float): Mutation probablity of new individual.
+            mut_indp (float): Probability of mutating single bit of new individual.
+            cx_indp (float): Probability used in uniform crossover.
+            early_stop (int, optional): Early stopping. Defaults to -1.
+            init_pop (Iterable[Any], optional): Initial population. Defaults to None.
+            verbose (bool, optional): Verbosity of the output. Defaults to True.
+        """
         super().__init__(
             ind_size,
             pop_size,
@@ -252,6 +344,22 @@ class BinaryGAOptimizer(GAOptimizer):
 
 
 class IntegerGAOptimizer(GAOptimizer):
+    """GA implementation modelling integer optimization problem.
+
+    Genetic algorithm (GA) implementation used to (but not limited to) solving neural network 
+    pruning problem defined as integer optimization problem. Number of decision variables in 
+    this problem is equal to number layers in the network that will be pruned. 
+    
+    Value of the decision variable xi defines number of filters/neurons that will be pruned
+    in the i-th layer of the neural network.
+
+    In this implementation, crossover operation is performed in uniform fashion (uniform 
+    crossover), mutation operation is performed by generating random number from triangular
+    distribution with min/max defined by lower/upper bounds (minimum and maximum of pruned
+    filters/neurons in specific layer) and mode is defined by current value of the element,
+    i. e.: xi ~ triangular(min, xi_actual, max).
+    """
+
     def __init__(
         self,
         ind_size: int,
@@ -267,6 +375,23 @@ class IntegerGAOptimizer(GAOptimizer):
         init_pop: Iterable[Any] = None,
         verbose: bool = True,
     ) -> None:
+        """Ctor.
+
+        Args:
+            ind_size (int): Size of the individual.
+            pop_size (int): Size of the population.
+            elite_num (int): Elite set size in range <0, pop_size).
+            tourn_size (int): Tournament size in range <2, pop_size).
+            n_gen (int): Number of produced generations.
+            mutp (float): Mutation probablity of new individual.
+            mut_indp (float): Probability of mutating single bit of new individual.
+            cx_indp (float): Probability used in uniform crossover.
+            bounds (Iterable[Tuple[int, int]]): Pairs of maximum/minimum number of filters/neurons
+                to be pruned in i-th layer of the network.
+            early_stop (int, optional): Early stopping. Defaults to -1.
+            init_pop (Iterable[Any], optional): Initial population. Defaults to None.
+            verbose (bool, optional): Verbosity of the output. Defaults to True.
+        """
         super().__init__(
             ind_size,
             pop_size,

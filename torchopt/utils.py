@@ -22,6 +22,12 @@ sys.path.append(os.path.join(PACKAGE_DIR, "model"))
 
 
 def get_vgg16() -> nn.Module:
+    """Returns trained VGG16 model on CIFAR10 dataset with 92.25% accuracy. Model was 
+    trained on subset of CIFAR10 training set consisting of first 45 000 samples.
+
+    Returns:
+        nn.Module: Trained VGG16 model on CIFAR10 dataset.
+    """
     model = torch.load(os.path.join(PACKAGE_DIR, "model", "vgg16_cifar10_0.9225_45k.pth"))
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = model.to(device)
@@ -29,6 +35,12 @@ def get_vgg16() -> nn.Module:
 
 
 def get_resnet56() -> nn.Module:
+    """Returns trained ResNet56 model on CIFAR10 dataset with 93.20% accuracy. Model was 
+    trained on subset of CIFAR10 training set consisting of first 45 000 samples.
+
+    Returns:
+        nn.Module: Trained ResNet56 model on CIFAR10 dataset.
+    """
     model = torch.load(os.path.join(PACKAGE_DIR, "model", "resnet56_cifar10_0.9320_45k.pth"))
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = model.to(device)
@@ -42,6 +54,20 @@ def cifar10_loaders(
     train_transform: Callable,
     test_transform: Callable,
 ) -> Tuple[DataLoaderWrapper, ...]:
+    """Returns training, validation and testing data loader for CIFAR10 dataset. Trainig data 
+    loader contains (50 000 - val_size) samples, validation data loader contains val_size samples 
+    and testing data loader contains 10 000 samples.
+
+    Args:
+        folder (str): Path to the folder where CIFAR10 dataset will be downloaded.
+        batch_size (int): Batch size.
+        val_size (int): Validation set size.
+        train_transform (Callable): Transform applied to data contained in training set.
+        test_transform (Callable): Transform applied to data contained in testing set.
+
+    Returns:
+        Tuple[DataLoaderWrapper, ...]: Training, validation and testing data loader.
+    """
     train_set = CIFAR10(download=True, root=folder, transform=train_transform, train=True)
     test_set = CIFAR10(download=False, root=folder, transform=test_transform, train=False)
 
@@ -64,6 +90,15 @@ def cifar10_loaders(
 
 
 def loader_to_memory(data_loader: Iterable, device: str) -> Iterable[Tuple[Tensor, Tensor]]:
+    """Copies data contained in data loader to memory of the device specified as a parameter.
+
+    Args:
+        data_loader (Iterable): Data loader data of which will be copied to the specified memory.
+        device (str): Name of the device, can be one of ('cuda', 'cpu').
+
+    Returns:
+        Iterable[Tuple[Tensor, Tensor]]: List of minibatches of samples copied to the specified memory.
+    """
     return [(inputs.to(device), labels.to(device)) for inputs, labels in data_loader]
 
 
@@ -77,6 +112,21 @@ def train_ignite(
     checkpoint_path: str = None,
     lr_scheduler: LRScheduler = None,
 ) -> dict:
+    """Trains model using torch-ignite framework.
+
+    Args:
+        model (nn.Module): Model to be trained.
+        train_set (Iterable[Tuple[Tensor, Tensor]]): Training set.
+        test_set (Iterable[Tuple[Tensor, Tensor]]): Testing set.
+        optimizer (Optimizer): Optimizer used in training.
+        loss_fn (Callable): Loss function to be minimized.
+        epochs (int): Number of training epochs.
+        checkpoint_path (str, optional): Checkpoint path. Defaults to None.
+        lr_scheduler (LRScheduler, optional): Learning rate scheduler. Defaults to None.
+
+    Returns:
+        dict: Training history.
+    """
     metric_dict = {}
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -117,6 +167,19 @@ def train(
     loss_fn: Callable,
     iterations: int,
 ) -> nn.Module:
+    """Trains model using standard training loop.
+
+    Args:
+        model (nn.Module): Model to be trained.
+        data (Iterable[Tuple[Tensor, Tensor]]): Training set.
+        device (str): Name of the device where training will be performed.
+        optimizer (Optimizer): Optimizer used in training.
+        loss_fn (Callable): Loss function to be minimized.
+        iterations (int): Number of training iterations (number of total minibatches).
+
+    Returns:
+        nn.Module: Trained model.
+    """
     model = model.train().to(device)
     iters = 0
 
@@ -138,6 +201,16 @@ def train(
 
 
 def evaluate(model: nn.Module, data: Iterable[Tuple[Tensor, Tensor]], device: str) -> float:
+    """Evaluates model's accuracy.
+
+    Args:
+        model (nn.Module): Model to be evaluated.
+        data (Iterable[Tuple[Tensor, Tensor]]): Dataset on which evaluation will be done.
+        device (str): Name of the device where evaluation will be performed.
+
+    Returns:
+        float: Accuracy of the model on the specified dataset.
+    """
     model = model.eval().to(device)
     correct, total = 0, 0
 

@@ -8,6 +8,15 @@ from .loader import DataLoaderWrapper
 
 
 class KDLoss(nn.Module):
+    """Class representing Knowledge Distillation (KD) loss implementation.
+
+    Vanilla KD is based on the architecture of teacher-student model, where already trained 
+    big teacher model is used to train smaller student model. During training, student model
+    tries to fit probability distribution of teacher's softmax outputs. To measure distance
+    between the two probability distributions, Kullback-Leibler (KL) divergence is used. For
+    more information, see: https://arxiv.org/pdf/1503.02531.pdf.
+    """
+
     def __init__(
         self,
         teacher: nn.Module,
@@ -16,6 +25,15 @@ class KDLoss(nn.Module):
         device: str,
         T: float,
     ) -> None:
+        """Ctor.
+
+        Args:
+            teacher (nn.Module): Trained teacher model.
+            train_loader (DataLoaderWrapper): Training set.
+            test_loader (DataLoaderWrapper): Testing set.
+            device (str): Name of the device where training/testing will be performed.
+            T (float): Temperature.
+        """
         super().__init__()
 
         self._train = train_loader

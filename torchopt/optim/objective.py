@@ -15,16 +15,43 @@ warnings.simplefilter("ignore", UserWarning)
 
 
 class Objective(ABC):
+    """Abstract class representing an objective function in optimization problems."""
+
     def __init__(self) -> None:
+        """Ctor."""
         super().__init__()
 
     @abstractmethod
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
+        """Computes value of the objective function for given solution.
+
+        Given function allows users to model objective functions with arbitrary number of 
+        dimensions, where number of elements in output tuple corresponds to the number of 
+        dimensions of the function.
+
+        Args:
+            solution (Any): Solution produced by optimization algorithm to be evaluated.
+
+        Returns:
+            Tuple[float, ...]: Value of the objective function. Number of elements corresponds
+                with number of dimensions of the objective function.
+        """
         pass
 
 
 class ObjectiveContainer(Objective):
+    """Represents a container for modelling composite objective functions.
+    
+    Objective function represented by ObjectiveContainer is evaluated by summing individual
+    objectives contained within it. All of the objectives must be of the same dimension.
+    """
+
     def __init__(self, *objectives: Objective) -> None:
+        """Ctor.
+
+        Args:
+            objectives (Objective): List of objective functions to be added to the container.
+        """
         super().__init__()
 
         self._objs = objectives
@@ -39,7 +66,15 @@ class ObjectiveContainer(Objective):
 
 
 class ModelObjective(Objective):
+    """Represents base class for objective functions related to a neural network pruning."""
+
     def __init__(self, model: nn.Module, pruner: Pruner) -> None:
+        """Ctor.
+
+        Args:
+            model (nn.Module): Model to be pruned.
+            pruner (Pruner): Pruner used for pruning the model.
+        """
         super().__init__()
 
         self._model = model
@@ -53,9 +88,25 @@ class ModelObjective(Objective):
 
 
 class Accuracy(ModelObjective):
+    """Represents objective function measuring neural network's accuracy after pruning.
+    
+    Value of the objective function is normalized according to accuracy of the original 
+    unpruned neural network. Also weight can be specified when used in composite objective
+    function i. e.: f = weight * (accuracy_pruned / accuracy_original).
+    """
+
     def __init__(
         self, model: nn.Module, pruner: Pruner, weight: float, val_data: Iterable, orig_acc: float
     ) -> None:
+        """Ctor.
+
+        Args:
+            model (nn.Module): Model to be pruned.
+            pruner (Pruner): Pruner used for pruning the model.
+            weight (float): Can be used to specify relative weight if used in composite function.
+            val_data (Iterable): Validation set on which an accuracy will be measured.
+            orig_acc (float): Accuracy of original unpruned model on the validation set.
+        """
         super().__init__(model, pruner)
 
         self._weight = weight
@@ -71,6 +122,15 @@ class Accuracy(ModelObjective):
 
 
 class AccuracyFinetuned(ModelObjective):
+    """Represents objective function measuring model's accuracy after pruning and finetuning.
+
+    Before measuring pruned model's accuracy, model is finetuned on training set for 
+    specified number of iterations. After that, model's accuracy is evaluated. Value 
+    of the objective function is normalized according to accuracy of the original 
+    unpruned neural network. Also weight can be specified when used in composite 
+    objective function i. e.: f = weight * (accuracy_pruned / accuracy_original).
+    """
+
     def __init__(
         self,
         model: nn.Module,
@@ -81,6 +141,17 @@ class AccuracyFinetuned(ModelObjective):
         iterations: int,
         orig_acc: float,
     ) -> None:
+        """Ctor.
+
+        Args:
+            model (nn.Module): Model to be pruned.
+            pruner (Pruner): Pruner used for pruning the model.
+            weight (float): Can be used to specify relative weight if used in composite function.
+            train_data (Iterable): Training set on which pruning model will be finetuned.
+            val_data (Iterable): Validation set on which an accuracy will be measured.
+            iterations (int): Number of finetuning iterations (total batches).
+            orig_acc (float): Accuracy of original unpruned model on the validation set.
+        """
         super().__init__(model, pruner)
 
         self._weight = weight
@@ -103,6 +174,13 @@ class AccuracyFinetuned(ModelObjective):
 
 
 class Macs(ModelObjective):
+    """Represents objective function measuring decrease in model's MACs after pruning.
+
+    Value of the objective function is normalized according to original model's MACs. Also 
+    weight can be specified when used in composite objective function. Final value of the 
+    objective function is given by: f = weight * (1 - MACs_pruned / MACs_original).
+    """
+
     def __init__(
         self,
         model: nn.Module,
@@ -111,6 +189,15 @@ class Macs(ModelObjective):
         weight: float,
         in_shape: Tuple[int, ...],
     ) -> None:
+        """Ctor.
+
+        Args:
+            model (nn.Module): Model to be pruned.
+            pruner (Pruner): Pruner used for pruning the model.
+            orig_macs (int): Number of MACs of original unpruned model.
+            weight (float): Can be used to specify relative weight if used in composite function.
+            in_shape (Tuple[int, ...]): Model's input shape.
+        """
         super().__init__(model, pruner)
 
         self._orig_macs = orig_macs
@@ -127,6 +214,15 @@ class Macs(ModelObjective):
 
 
 class MacsPenalty(ModelObjective):
+    """Represents penalty function for exceeding maximum allowed number of MACs.
+    
+    Number of MACs of pruned model is normalized according to number of MACs of the original 
+    unpruned model. Also weight can be specified when used in composite objective function. 
+    Final value of the objective function is given by:
+    f = max(0, (MACs_pruned - B) / (MACs_original - B)) 
+    where B is maximum allowed number of MACs for the penalty function.
+    """
+
     def __init__(
         self,
         model: nn.Module,
@@ -136,6 +232,17 @@ class MacsPenalty(ModelObjective):
         orig_macs: int,
         in_shape: Tuple[int, ...],
     ) -> None:
+        """Ctor.
+
+        Args:
+            model (nn.Module): Model to be pruned.
+            pruner (Pruner): Pruner used for pruning the model.
+            weight (float): Can be used to specify relative weight if used in composite function.
+            p (float): Value between (0, 1) specifying maximum allowed portion of MACs according 
+                to the original MACs.
+            orig_macs (int): Number of MACs of original unpruned model.
+            in_shape (Tuple[int, ...]): Model's input shape.
+        """
         super().__init__(model, pruner)
 
         self._weigh = weight
@@ -159,6 +266,13 @@ class MacsPenalty(ModelObjective):
 
 
 class PrunedRatioPenalty(ModelObjective):
+    """Represents penalty function for exceeding maximum or minimum of allowed pruned ratio.
+    
+    Pruned ratio is computed only within layers subjected to pruning. Pruned ratio is computed by 
+    dividing total number of weights in pruned layers by total number of weights in these layers 
+    before pruning, i. e.: f = sum(pruned_weights in each layer) / sum(orig_weights in each layer).
+    """
+
     def __init__(
         self,
         model: nn.Module,
@@ -168,6 +282,16 @@ class PrunedRatioPenalty(ModelObjective):
         lower_bound: float,
         upper_bound: float,
     ) -> None:
+        """Ctor.
+
+        Args:
+            model (nn.Module): Model to be pruned.
+            pruner (Pruner): Pruner used for pruning the model.
+            module_names (Iterable[str]): Names of layers to be pruned.
+            weight (float): Can be used to specify relative weight if used in composite function.
+            lower_bound (float): Value between (0, upper_bound) specifying minimum pruned ratio.
+            upper_bound (float): Value between (lower_bound, 1) specifying maximum pruned ratio.
+        """
         super().__init__(model, pruner)
 
         self._names = module_names

@@ -9,16 +9,43 @@ from torch_pruning.dependency import _get_module_type
 
 
 class Pruner(ABC):
+    """Base class for neural network pruning implementations."""
+
     def __init__(self) -> None:
+        """Ctor."""
         super().__init__()
 
     @abstractmethod
     def prune(self, model: nn.Module, mask: Any) -> nn.Module:
+        """Performs structured pruning on a model according to specified mask.
+
+        After pruning all unnecessary parameters are physically removed from the model, 
+        thus reducing the total number of parameters contained in the model.
+
+        Args:
+            model (nn.Module): Model to be pruned.
+            mask (Any): Mask defining pruning structure.
+
+        Returns:
+            nn.Module: Pruned model.
+        """
         pass
 
 
 class ModulePruner(Pruner):
+    """Pruner implementation performing pruning in module-wise fashion.
+    
+    ModulePruner prunes whole neural network's modules. A module can be single layer
+    of the network or group of layers, also called blocks. Only modules contained in 
+    nn.Sequential parent module can be pruned.
+    """
+
     def __init__(self, names: Iterable[str]) -> None:
+        """Ctor.
+
+        Args:
+            names (Iterable[str]): Names of modules to be pruned.
+        """
         super().__init__()
 
         self._names = names
@@ -49,7 +76,20 @@ class ModulePruner(Pruner):
 
 
 class ResnetModulePruner(ModulePruner):
+    """Implementation of ModulePruner specific to Resnet architectures.
+
+    This implementation takes care of the shortcut connections contained in Resnet 
+    architectures. If a pruned block contains the shortcut connection, this connection 
+    is preserved in the model to preserve its functional properties.
+    """
+
     def __init__(self, names: Iterable[str], shortcut_name: str) -> None:
+        """Ctor.
+
+        Args:
+            names (Iterable[str]): Names of modules to be pruned.
+            shortcut_name (str): Name of the module representing shortcut connection.
+        """
         super().__init__(names)
 
         self._shortcut_name = shortcut_name
@@ -77,7 +117,28 @@ class ResnetModulePruner(ModulePruner):
 
 
 class ChannelPruner(Pruner):
+    """Pruner implementation performing pruning in channel-wise fashion.
+
+    ChannelPruner prunes individual filters/neurons from the neural network's layers. It accepts 
+    two types of masks:
+
+    1 - binary which can contain {0, 1} only. Length of binary mask must be the same as 
+    the total number of filters/neurons in pruned layers. 0 at the i-th position within 
+    the mask means that i-th filter/neuron will be pruned from the model.
+
+    2 - integer which can contain integers only. Length of integer mask must be the same
+    as the total number of pruned layers. I-th element at mask defines number of fiters/
+    neurons to be pruned at the i-th pruned layer. Specific filters/neurons are determined
+    according to the sum of their elements' absolute values (L1 strategy).
+    """
+
     def __init__(self, module_names: Iterable[str], input_shape: Tuple[int, ...],) -> None:
+        """Ctor.
+
+        Args:
+            module_names (Iterable[str]): Names of modules to be pruned.
+            input_shape (Tuple[int, ...]): Model's input shape.
+        """
         super().__init__()
 
         self._input_shape = input_shape
