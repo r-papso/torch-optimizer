@@ -14,7 +14,7 @@ class KDLoss(nn.Module):
         train_loader: DataLoaderWrapper,
         test_loader: DataLoaderWrapper,
         device: str,
-        T: float
+        T: float,
     ) -> None:
         super().__init__()
 
@@ -30,13 +30,16 @@ class KDLoss(nn.Module):
         data, labels = loader.cahced_batch()
         data, labels = data.to(self._device), labels.to(self._device)
 
-        assert torch.all(labels == targets)
+        assert torch.all(labels == targets).item()
 
         preds = self._teacher(data)
         preds_log = F.log_softmax(preds / self._T, dim=1)
         inputs_log = F.log_softmax(inputs / self._T, dim=1)
 
-        return self._kl_loss(inputs_log, preds_log)
+        kl_loss = self._kl_loss(inputs_log, preds_log)
+        ce_loss = F.cross_entropy(inputs, targets)
+
+        return kl_loss + ce_loss
 
     def _init_teacher(self, teacher: nn.Module) -> nn.Module:
         teacher_cpy = deepcopy(teacher)
