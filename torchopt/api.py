@@ -68,7 +68,7 @@ def vgg_best(
     os.makedirs(output_dir, exist_ok=True)
 
     model = utils.get_vgg16()
-    names = [name for name, _ in _modules_to_prune(model)]
+    names = [name for name, _ in utils.prunable_modules(model)]
     pruner = ChannelPruner(names, INPUT_SHAPE)
     i = 0
 
@@ -80,7 +80,7 @@ def vgg_best(
 
         model = pruner.prune(model, solution)
         model = _reduce_dropout(model, dropout_decay)
-        model = _reset_parameters(model) if reset_params else model
+        model = utils.reset_params(model) if reset_params else model
         model = _train(model, utils.get_vgg16() if distille else None, 256, **kwargs)
 
         torch.save(model, os.path.join(output_dir, f"vgg_best_{i}.pth"))
@@ -138,7 +138,7 @@ def vgg_constrained(
     os.makedirs(output_dir, exist_ok=True)
 
     model = utils.get_vgg16()
-    names = [name for name, _ in _modules_to_prune(model)]
+    names = [name for name, _ in utils.prunable_modules(model)]
     pruner = ChannelPruner(names, INPUT_SHAPE)
     orig_macs, _ = profile(model, inputs=(torch.randn(INPUT_SHAPE, device=DEVICE),), verbose=False)
     w = kwargs.get("weight", -1.0)
@@ -152,7 +152,7 @@ def vgg_constrained(
 
         model = pruner.prune(model, solution)
         model = _reduce_dropout(model, dropout_decay)
-        model = _reset_parameters(model) if reset_params else model
+        model = utils.reset_params(model) if reset_params else model
         model = _train(model, utils.get_vgg16() if distille else None, 256, **kwargs)
 
         torch.save(model, os.path.join(output_dir, f"vgg_constrained_{b}.pth"))
@@ -206,7 +206,7 @@ def resnet_best(
 
     while True:
         # Channel pruning
-        ch_names = [name for name, _ in _modules_to_prune(model)]
+        ch_names = [name for name, _ in utils.prunable_modules(model)]
         ch_pruner = ChannelPruner(ch_names, INPUT_SHAPE)
 
         optim = _integer_GA(model, **kwargs) if mode == "int" else _binary_GA(model, **kwargs)
@@ -224,7 +224,7 @@ def resnet_best(
             m_solution = optim.maximize(objective, None)
 
         model, solution = _choose_best(model, ch_solution, ch_pruner, m_solution, m_pruner)
-        model = _reset_parameters(model) if reset_params else model
+        model = utils.reset_params(model) if reset_params else model
         model = _train(model, utils.get_resnet56() if distille else None, 128, **kwargs)
 
         torch.save(model, os.path.join(output_dir, f"resnet_best_{i}.pth"))
@@ -289,7 +289,7 @@ def resnet_constrained(
     # Iteratively prune model according to upper bounds
     for b in bounds:
         # Channel pruning
-        ch_names = [name for name, _ in _modules_to_prune(model)]
+        ch_names = [name for name, _ in utils.prunable_modules(model)]
         ch_pruner = ChannelPruner(ch_names, INPUT_SHAPE)
 
         optim = _integer_GA(model, **kwargs) if mode == "int" else _binary_GA(model, **kwargs)
@@ -307,7 +307,7 @@ def resnet_constrained(
             m_solution = optim.maximize(objective, None)
 
         model, solution = _choose_best(model, ch_solution, ch_pruner, m_solution, m_pruner)
-        model = _reset_parameters(model) if reset_params else model
+        model = utils.reset_params(model) if reset_params else model
         model = _train(model, utils.get_resnet56() if distille else None, 128, **kwargs)
 
         torch.save(model, os.path.join(output_dir, f"resnet_constrained_{b}.pth"))
@@ -377,7 +377,7 @@ def _objective_constrained(
 
 
 def _integer_GA(model: nn.Module, **kwargs) -> Optimizer:
-    bounds = [(0, len(module.weight) - 1) for _, module in _modules_to_prune(model)]
+    bounds = [(0, len(module.weight) - 1) for _, module in utils.prunable_modules(model)]
     pop_size = kwargs.get("pop_size", 100)
     ind_size = len(bounds)
 
@@ -396,7 +396,7 @@ def _integer_GA(model: nn.Module, **kwargs) -> Optimizer:
 
 def _binary_GA(model: nn.Module, **kwargs) -> Optimizer:
     pop_size = kwargs.get("pop_size", 100)
-    ind_size = sum([len(module.weight) for _, module in _modules_to_prune(model)])
+    ind_size = sum([len(module.weight) for _, module in utils.prunable_modules(model)])
 
     return BinaryGAOptimizer(
         ind_size=ind_size,
@@ -493,19 +493,3 @@ def _choose_best(
     sol = ch_sol if m_sol is None or ch_sol.fitness.values[0] > m_sol.fitness.values[0] else m_sol
 
     return pr.prune(model, sol), sol
-
-
-def _modules_to_prune(model: nn.Module) -> Iterable[Tuple[str, nn.Module]]:
-    last_layer = list(model.modules())[-1]
-
-    for name, module in model.named_modules():
-        if isinstance(module, (nn.Conv2d, nn.Linear)) and module is not last_layer:
-            yield name, module
-
-
-def _reset_parameters(model: nn.Module) -> nn.Module:
-    for module in model.modules():
-        if hasattr(module, "reset_parameters"):
-            module.reset_parameters()
-
-    return model

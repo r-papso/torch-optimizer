@@ -294,11 +294,11 @@ class SizePenalty(ModelObjective):
         self._weight = weight
         self._lbound = lower_bound
         self._ubound = upper_bound
-        self._orig_size = self._count_params(self._model)
+        self._orig_size = utils.count_params(self._model)
 
     def evaluate(self, solution: Any) -> Tuple[float, ...]:
         model = self._get_pruned_model(solution)
-        size = self._count_params(model) / self._orig_size
+        size = utils.count_params(model) / self._orig_size
 
         if size < self._lbound:
             return (self._weight * (self._lbound - size),)
@@ -306,6 +306,3 @@ class SizePenalty(ModelObjective):
             return (self._weight * (size - self._ubound),)
         else:
             return (0.0,)
-
-    def _count_params(self, model: nn.Module):
-        return sum(p.numel() for p in model.parameters() if p.requires_grad)

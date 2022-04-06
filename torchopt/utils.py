@@ -226,6 +226,55 @@ def evaluate(model: nn.Module, data: Iterable[Tuple[Tensor, Tensor]], device: st
     return correct / total
 
 
+def prunable_modules(model: nn.Module) -> Iterable[Tuple[str, nn.Module]]:
+    """Returns all prunable layers of the model.
+
+    This method returns all model's convolutional and linear layers except the model's
+    classifier (last layer of the model). 
+
+    Args:
+        model (nn.Module): Model from which prunable modules will be returned.
+
+    Returns:
+        Iterable[Tuple[str, nn.Module]]: All prunable layers of the model.
+    """
+    last_layer = list(model.modules())[-1]
+
+    for name, module in model.named_modules():
+        if isinstance(module, (nn.Conv2d, nn.Linear)) and module is not last_layer:
+            yield name, module
+
+
+def count_params(model: nn.Module) -> int:
+    """Returns total number of model's trainable parameters.
+
+    Args:
+        model (nn.Module): Model in which parameters will be counted.
+
+    Returns:
+        int: Total number of model's trainable parameters.
+    """
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+def reset_params(model: nn.Module) -> nn.Module:
+    """Randomly reinitializes all model's trainable parameters.
+
+    Modules's reinitialization is achieved by calling its reset_parameters function.
+
+    Args:
+        model (nn.Module): Model in which parameters will be reset.
+
+    Returns:
+        nn.Module: Model with reinitialized parameters.
+    """
+    for module in model.modules():
+        if hasattr(module, "reset_parameters"):
+            module.reset_parameters()
+
+    return model
+
+
 def _custom_output_transform(x, y, y_pred, loss):
     return {"y": y, "y_pred": y_pred, "loss": loss.item(), "criterion_kwargs": {}}
 
