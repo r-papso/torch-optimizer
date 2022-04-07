@@ -442,8 +442,12 @@ def _train(model: nn.Module, teacher: nn.Module, batch_size: int, **kwargs) -> n
     optimizer = SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
     loss_fn = nn.CrossEntropyLoss() if teacher is None else KDLoss(teacher, train, test, DEVICE, T)
 
-    lr_scheduler = kwargs.get("lr_scheduler", CosineAnnealingLR(optimizer, epochs))
-    scheduler = LRScheduler(lr_scheduler)
+    scheduler = (
+        kwargs.get("lr_scheduler")(optimizer, kwargs)
+        if "lr_scheduler" in kwargs
+        else CosineAnnealingLR(optimizer, epochs)
+    )
+    lr_scheduler = LRScheduler(scheduler)
 
     _ = utils.train_ignite(
         model=model,
@@ -453,7 +457,7 @@ def _train(model: nn.Module, teacher: nn.Module, batch_size: int, **kwargs) -> n
         loss_fn=loss_fn,
         epochs=epochs,
         checkpoint_path=checkpoint,
-        lr_scheduler=scheduler,
+        lr_scheduler=lr_scheduler,
     )
 
     model_f = next(
