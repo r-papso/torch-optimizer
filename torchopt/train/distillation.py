@@ -65,4 +65,4 @@ class KDLoss(nn.Module):
         for param in teacher_cpy.parameters():
             param.requires_grad = False
 
-        return teacher_cpy
+        return teacher_cpy.eval()
