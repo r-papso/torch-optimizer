@@ -435,7 +435,6 @@ def _train(model: nn.Module, teacher: nn.Module, batch_size: int, **kwargs) -> n
     momentum = kwargs.get("momentum", 0.9)
     weight_decay = kwargs.get("weight_decay", 0.0001)
     epochs = kwargs.get("epochs", 50)
-
     T = kwargs.get("T", 1.0)
 
     train, _, test = _train_data(batch_size)
@@ -443,7 +442,7 @@ def _train(model: nn.Module, teacher: nn.Module, batch_size: int, **kwargs) -> n
     loss_fn = nn.CrossEntropyLoss() if teacher is None else KDLoss(teacher, train, test, DEVICE, T)
 
     scheduler = (
-        kwargs.get("lr_scheduler")(optimizer, kwargs)
+        kwargs.get("lr_scheduler")(optimizer, **kwargs.get("lr_scheduler_params"))
         if "lr_scheduler" in kwargs
         else CosineAnnealingLR(optimizer, epochs)
     )
