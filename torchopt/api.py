@@ -32,7 +32,8 @@ def vgg_best(
     finetune: bool,
     mode: str,
     output_dir: str,
-    dropout_decay: Union[float, Iterable] = 0.0,
+    dropout_decay: float = 0.0,
+    wd_decay: float = 0.0,
     iterative: bool = False,
     distille: bool = False,
     reset_params: bool = False,
@@ -48,8 +49,9 @@ def vgg_best(
             its accuracy.
         mode (str): Determines type of the optimization problem, one of ['int', 'binary'].
         output_dir (str): Path to the folder where pruned models will be stored.
-        dropout_decay (Union[float, Iterable], optional): Reduction of dropout probability in 
+        dropout_decay (float, optional): Reduction of dropout probability in 
             dropout layers during each step of the pruning. Defaults to 0.0.
+        wd_decay (float, optional): Reduction of weight decay. Defaults to 0.0.
         iterative (bool, optional): Determines whether perform iterative pruning. Defaults to False.
         distille (bool, optional): Determines whether to use Knowledge Distillation for model 
             finetuning. Defaults to False.
@@ -78,6 +80,8 @@ def vgg_best(
         constraint = ChannelConstraint(model, pruner)
         solution = optim.maximize(objective, constraint)
 
+        kwargs["weight_decay"] = round(kwargs.get("weight_decay", 0.0001) - i * wd_decay, 8)
+
         model = pruner.prune(model, solution)
         model = _reduce_dropout(model, dropout_decay)
         model = utils.reset_params(model) if reset_params else model
@@ -98,7 +102,8 @@ def vgg_constrained(
     mode: str,
     bounds: Iterable,
     output_dir: str,
-    dropout_decay: Union[float, Iterable] = 0.0,
+    dropout_decay: float = 0.0,
+    wd_decay: float = 0.0,
     distille: bool = False,
     reset_params: bool = False,
     **kwargs,
@@ -119,8 +124,9 @@ def vgg_constrained(
         bounds (Iterable): MACs percentage upper bounds according to MACs of the original unpruned 
             model, each bound should be in range (0, 1).
         output_dir (str): Path to the folder where pruned models will be stored.
-        dropout_decay (Union[float, Iterable], optional): Reduction of dropout probability in 
+        dropout_decay (float, optional): Reduction of dropout probability in 
             dropout layers during each step of the pruning. Defaults to 0.0.
+        wd_decay (float, optional): Reduction of weight decay. Defaults to 0.0.
         distille (bool, optional): Determines whether to use Knowledge Distillation for model 
             finetuning. Defaults to False.
         reset_params (bool, optional): Determines whether to reset weights' values after pruning, 
@@ -144,11 +150,13 @@ def vgg_constrained(
     w = kwargs.get("weight", -1.0)
 
     # Iteratively prune model according to upper bounds
-    for b in bounds:
+    for i, b in enumerate(bounds):
         optim = _integer_GA(model, **kwargs) if mode == "int" else _binary_GA(model, **kwargs)
         objective = _objective_constrained(model, pruner, finetune, orig_macs, b, w)
         constraint = ChannelConstraint(model, pruner)
         solution = optim.maximize(objective, constraint)
+
+        kwargs["weight_decay"] = round(kwargs.get("weight_decay", 0.0001) - i * wd_decay, 8)
 
         model = pruner.prune(model, solution)
         model = _reduce_dropout(model, dropout_decay)
@@ -167,6 +175,7 @@ def resnet_best(
     output_dir: str,
     iterative: bool = False,
     alternate: bool = True,
+    wd_decay: float = 0.0,
     distille: bool = False,
     reset_params: bool = False,
     **kwargs,
@@ -184,6 +193,7 @@ def resnet_best(
         iterative (bool, optional): Determines whether perform iterative pruning. Defaults to False.
         alternate (bool, optional): Determines whether to alternatively perform channel and block 
             pruning. Defaults to True.
+        wd_decay (float, optional): Reduction of weight decay. Defaults to 0.0.
         distille (bool, optional): Determines whether to use Knowledge Distillation for model 
             finetuning. Defaults to False.
         reset_params (bool, optional): Determines whether to reset weights' values after pruning, 
@@ -223,6 +233,8 @@ def resnet_best(
             objective = _objective_best(model, m_pruner, finetune, kwargs.get("weight", 1.0))
             m_solution = optim.maximize(objective, None)
 
+        kwargs["weight_decay"] = round(kwargs.get("weight_decay", 0.0001) - i * wd_decay, 8)
+
         model, solution = _choose_best(model, ch_solution, ch_pruner, m_solution, m_pruner)
         model = utils.reset_params(model) if reset_params else model
         model = _train(model, utils.get_resnet56() if distille else None, 128, **kwargs)
@@ -243,6 +255,7 @@ def resnet_constrained(
     bounds: Iterable,
     output_dir: str,
     alternate: bool = True,
+    wd_decay: float = 0.0,
     distille: bool = False,
     reset_params: bool = False,
     **kwargs,
@@ -265,6 +278,7 @@ def resnet_constrained(
         output_dir (str): Path to the folder where pruned models will be stored.
         alternate (bool, optional): Determines whether to alternatively perform channel and block 
             pruning. Defaults to True.
+        wd_decay (float, optional): Reduction of weight decay. Defaults to 0.0.
         distille (bool, optional): Determines whether to use Knowledge Distillation for model 
             finetuning. Defaults to False.
         reset_params (bool, optional): Determines whether to reset weights' values after pruning, 
@@ -287,7 +301,7 @@ def resnet_constrained(
     m_solution = None
 
     # Iteratively prune model according to upper bounds
-    for b in bounds:
+    for i, b in enumerate(bounds):
         # Channel pruning
         ch_names = [name for name, _ in utils.prunable_modules(model)]
         ch_pruner = ChannelPruner(ch_names, INPUT_SHAPE)
@@ -305,6 +319,8 @@ def resnet_constrained(
             optim = _module_GA(len(m_names), **kwargs)
             objective = _objective_constrained(model, m_pruner, finetune, orig_macs, b, w)
             m_solution = optim.maximize(objective, None)
+
+        kwargs["weight_decay"] = round(kwargs.get("weight_decay", 0.0001) - i * wd_decay, 8)
 
         model, solution = _choose_best(model, ch_solution, ch_pruner, m_solution, m_pruner)
         model = utils.reset_params(model) if reset_params else model
@@ -469,17 +485,9 @@ def _train(model: nn.Module, teacher: nn.Module, batch_size: int, **kwargs) -> n
     return model
 
 
-def _reduce_dropout(model: nn.Module, do_decay: Union[float, Iterable]) -> nn.Module:
-    dropouts = [module for module in model.modules() if isinstance(module, nn.Dropout)]
-
-    try:
-        _ = iter(do_decay)
-        decays = do_decay
-    except:
-        decays = [do_decay] * len(dropouts)
-
-    for dropout, decay in zip(dropouts, decays):
-        dropout.p = max(0, dropout.p - decay)
+def _reduce_dropout(model: nn.Module, do_decay: float) -> nn.Module:
+    for dropout in [module for module in model.modules() if isinstance(module, nn.Dropout)]:
+        dropout.p = max(0, round(dropout.p - do_decay, 4))
 
     return model
 
