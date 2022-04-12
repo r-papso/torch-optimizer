@@ -14,7 +14,7 @@ class KDLoss(nn.Module):
     big teacher model is used to train smaller student model. During training, student model
     tries to fit probability distribution of teacher's softmax outputs. To measure distance
     between the two probability distributions, Kullback-Leibler (KL) divergence is used. For
-    more information, see: https://arxiv.org/pdf/1503.02531.pdf.
+    more information, see: https://arxiv.org/pdf/2006.05525.pdf.
     """
 
     def __init__(
@@ -45,7 +45,7 @@ class KDLoss(nn.Module):
 
     def forward(self, inputs: Tensor, targets: Tensor) -> Tensor:
         loader = self._train if self._train.timestamp() > self._test.timestamp() else self._test
-        data, labels = loader.cahced_batch()
+        data, labels = loader.cached_batch()
         data, labels = data.to(self._device), labels.to(self._device)
 
         assert torch.all(labels == targets).item()
