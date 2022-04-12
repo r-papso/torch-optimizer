@@ -47,7 +47,6 @@ from torchopt.optim.optimizer import IntegerGAOptimizer
 from torchopt.optim.objective import Accuracy, Macs, ObjectiveContainer
 from torchopt.optim.constraint import ChannelConstraint
 
-
 from thop import profile
 
 
