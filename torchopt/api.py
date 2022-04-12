@@ -352,7 +352,7 @@ def _train_data(batch_size) -> Tuple[Iterable, Iterable, Iterable]:
     train_loader, val_loader, test_loader = utils.cifar10_loaders(
         folder=os.path.join(os.getcwd(), "data", "cifar10"),
         batch_size=batch_size,
-        val_size=0,
+        val_size=5000,
         train_transform=Compose([RandomHorizontalFlip(p=0.5), RandomCrop(32, 4), ToTensor()]),
         test_transform=Compose([ToTensor()]),
     )
