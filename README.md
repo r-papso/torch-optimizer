@@ -1,5 +1,5 @@
 # Torch optimizer
-Torch optimizer is a Python library for optimizing PyTorch models using techniques of neural network pruning. Neural network pruning can be formulated as an optimization problem to find best subset from the set of network's weights, i. e.:
+Torch optimizer is a Python library for optimizing PyTorch models using techniques of neural network pruning. Neural network pruning can be formulated as an optimization problem to determine best subset of set of network's weights, i. e.:
 
 **Maximize:** Accuracy(model(W • M)) <br>
 **Subject to:** Resource<sub>j</sub>(model(W • M)) <= Budget<sub>j</sub>
