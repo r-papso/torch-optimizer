@@ -80,7 +80,7 @@ def vgg_best(
         constraint = ChannelConstraint(model, pruner)
         solution = optim.maximize(objective, constraint)
 
-        kwargs["weight_decay"] = round(kwargs.get("weight_decay", 0.0001) - i * wd_decay, 8)
+        kwargs["weight_decay"] = round(kwargs.get("weight_decay", 0.0001) - wd_decay, 8)
 
         model = pruner.prune(model, solution)
         model = _reduce_dropout(model, dropout_decay)
@@ -150,13 +150,13 @@ def vgg_constrained(
     w = kwargs.get("weight", -1.0)
 
     # Iteratively prune model according to upper bounds
-    for i, b in enumerate(bounds):
+    for b in bounds:
         optim = _integer_GA(model, **kwargs) if mode == "int" else _binary_GA(model, **kwargs)
         objective = _objective_constrained(model, pruner, finetune, orig_macs, b, w)
         constraint = ChannelConstraint(model, pruner)
         solution = optim.maximize(objective, constraint)
 
-        kwargs["weight_decay"] = round(kwargs.get("weight_decay", 0.0001) - i * wd_decay, 8)
+        kwargs["weight_decay"] = round(kwargs.get("weight_decay", 0.0001) - wd_decay, 8)
 
         model = pruner.prune(model, solution)
         model = _reduce_dropout(model, dropout_decay)
@@ -233,7 +233,7 @@ def resnet_best(
             objective = _objective_best(model, m_pruner, finetune, kwargs.get("weight", 1.0))
             m_solution = optim.maximize(objective, None)
 
-        kwargs["weight_decay"] = round(kwargs.get("weight_decay", 0.0001) - i * wd_decay, 8)
+        kwargs["weight_decay"] = round(kwargs.get("weight_decay", 0.0001) - wd_decay, 8)
 
         model, solution = _choose_best(model, ch_solution, ch_pruner, m_solution, m_pruner)
         model = utils.reset_params(model) if reset_params else model
@@ -301,7 +301,7 @@ def resnet_constrained(
     m_solution = None
 
     # Iteratively prune model according to upper bounds
-    for i, b in enumerate(bounds):
+    for b in bounds:
         # Channel pruning
         ch_names = [name for name, _ in utils.prunable_modules(model)]
         ch_pruner = ChannelPruner(ch_names, INPUT_SHAPE)
@@ -320,7 +320,7 @@ def resnet_constrained(
             objective = _objective_constrained(model, m_pruner, finetune, orig_macs, b, w)
             m_solution = optim.maximize(objective, None)
 
-        kwargs["weight_decay"] = round(kwargs.get("weight_decay", 0.0001) - i * wd_decay, 8)
+        kwargs["weight_decay"] = round(kwargs.get("weight_decay", 0.0001) - wd_decay, 8)
 
         model, solution = _choose_best(model, ch_solution, ch_pruner, m_solution, m_pruner)
         model = utils.reset_params(model) if reset_params else model
