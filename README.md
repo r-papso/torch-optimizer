@@ -20,11 +20,11 @@ Library provides several functionalities to facilitate solving given optimizatio
 
 ### Optimization algorithms
 
-[Optimizer](./torchopt/optim/optimizer.py) module contains common interface for an optimization algortihm implementations. Module also contains implementation of Genetic algorithm (GA) meta-heuristic. Two implementations of GA are provided: 1. to solve integer optimization problem and 2. to solve binary optimization problem. Detailed description of the GA implementations can be found in the module.
+[Optimizer](./torchopt/optim/optimizer.py) module contains common interface for an optimization algortihm implementations. Module also contains implementation of Genetic algorithm (GA) meta-heuristic. Two implementations of GA are provided: 1. to solve integer optimization problems and 2. to solve binary optimization problems. Detailed description of the GA implementations can be found in the module.
 
 ### Pruning
 
-[Pruner](./torchopt/prune/pruner.py) module provides basic functionality for structured neural network pruning. Structured pruning can be performed in different levels of granularity. For channel pruning, where individual filters / neurons are pruned, a channel pruner is implemented. For module level pruning, where individual layers or blocks of the network can be pruned, a library provides module pruner implementation.
+[Pruner](./torchopt/prune/pruner.py) module provides basic functionality for structured neural network pruning. Structured pruning can be performed in different levels of granularity. For channel pruning, where individual filters / neurons are pruned, a channel pruner is provided. For module level pruning, where individual layers or blocks of the network can be pruned, a library provides module pruner implementation.
 
 ## Installation
 
@@ -36,7 +36,7 @@ pip install torch-optimizer
 
 ## Usage
 
-The simples way to use the library is to use [API](./torchopt/api.py) module. However, the module provides restricted options of pruning. One can train their own PyTorch model on arbitrary dataset and then use the library functionalities to perform structured pruning. Here is the simple example:
+One can train their own PyTorch model on arbitrary dataset and then use the library functionalities to perform structured pruning. Here is the simple example:
 
 ```python
 import torch
