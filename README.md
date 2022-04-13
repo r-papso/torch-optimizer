@@ -12,11 +12,11 @@ Library provides several functionalities to facilitate solving given optimizatio
 
 ### Objective functions
 
-[Objective](./torchopt/optim/objective.py) module provides common interface for modelling optimization objective functions. Objective function of arbitrary optimization problem can be created by it's implementation. Module also provides several implementations of objective function in context of neural network pruning to evaluate pruned neural net's performance and efficiency, such as accuracy or relative decrease of MACs (Multiply–accumulate operations) according to number of MACs of original unpruned net.
+[Objective](./torchopt/optim/objective.py) module provides common interface for modelling optimization objective functions. Objective function of arbitrary optimization problem can be created by implementing the interface. Module also provides several implementations of objective function in context of neural network pruning to evaluate pruned neural net's performance and efficiency, such as accuracy or relative decrease of MACs (Multiply–accumulate operations) according to number of MACs of original unpruned net.
 
 ### Constraints
 
-[Constraint](./torchopt/optim/constraint.py) module provides common interface for modelling optimization constraints. Constraint of an arbitrary optimization problem can be created by it's implementation. For neural network pruning purposes, a constraint that checks validity of the pruning (i. e. no layer can contain empty weight tensor after pruning) is provided.
+[Constraint](./torchopt/optim/constraint.py) module provides common interface for modelling optimization constraints. Constraint of an arbitrary optimization problem can be created by the interface implementation. For neural network pruning purposes, a constraint that checks validity of the pruning (i. e. no layer can contain empty weight tensor after pruning) is provided.
 
 ### Optimization algorithms
 
