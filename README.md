@@ -24,7 +24,7 @@ Library provides several functionalities to facilitate solving given optimizatio
 
 ### Pruning
 
-[Pruner](./torchopt/prune/pruner.py) module provides basic functionality for structured neural network pruning. Structured pruning can be performed in different levels of granularity. For channel pruning, where individual filters / neurons are pruned, a channel pruner is provided. For module level pruning, where individual layers or blocks of the network can be pruned, a library provides module pruner implementation.
+[Pruner](./torchopt/prune/pruner.py) module provides basic functionality for structured neural network pruning. Structured pruning can be performed in different levels of granularity. For channel pruning, where individual filters / neurons are pruned, a channel pruner is provided. For module level pruning, where individual layers or blocks of the network can be pruned, library provides module pruner implementation.
 
 ## Installation
 
