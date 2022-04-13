@@ -4,7 +4,7 @@ Torch optimizer is a Python library for optimizing PyTorch models using techniqu
 **Maximize:** Accuracy(model(W • M)) <br>
 **Subject to:** Resource<sub>j</sub>(model(W • M)) <= Budget<sub>j</sub>
 
-where W are model's weights, M is binary mask with size |M| = |W|, resource can be any resource we want to reduce (e. g. FLOPs, latency, model size, ...) and budget is our desired upper bound of the resource we want to reduce. 
+where W are model's weights, M is binary mask with size |M| = |W|, resource can be any resource we want to reduce (e. g. FLOPs, MACs, latency, model size, ...) and budget is our desired upper bound of the resource we want to reduce. 
 
 Library provides several functionalities to facilitate solving given optimization problem.
 
@@ -12,15 +12,15 @@ Library provides several functionalities to facilitate solving given optimizatio
 
 ### Objective functions
 
-[Objective](./torchopt/optim/objective.py) module provides common interface for modelling optimization objective functions. The interface is generic, which means that arbitrary objective function can be created by it's implementation. Module also provides several objective function implementations to evaluate pruned neural net's performance and efficiency, such accuracy or relative decrease of MACs (Multiply–accumulate operations) according to number of MACs of original unpruned net.
+[Objective](./torchopt/optim/objective.py) module provides common interface for modelling optimization objective functions. Objective function of arbitrary optimization problem can be created by it's implementation. Module also provides several implementations of objective function in context of neural network pruning to evaluate pruned neural net's performance and efficiency, such as accuracy or relative decrease of MACs (Multiply–accumulate operations) according to number of MACs of original unpruned net.
 
 ### Constraints
 
-[Constraint](./torchopt/optim/constraint.py) module provides common interface for modelling optimization constraints. The interface is also generic, which means that constraint of an arbitrary optimization problem can be created by it's implementation. For neural network pruning purposes, a constraint that checks validity of the pruning (i. e. no layer can contain empty weight tensor after pruning) is provided.
+[Constraint](./torchopt/optim/constraint.py) module provides common interface for modelling optimization constraints. Constraint of an arbitrary optimization problem can be created by it's implementation. For neural network pruning purposes, a constraint that checks validity of the pruning (i. e. no layer can contain empty weight tensor after pruning) is provided.
 
 ### Optimization algorithms
 
-[Optimizer](./torchopt/optim/optimizer.py) module contains common interface for an optimization algortihm implementations. Module also contains implementation of Genetic algorithm (GA) meta-heuristic. Two implementations of GA are provided: 1. to solve integer optimization problems and 2. to solve binary optimization problems. Detailed description of the GA implementations can be found in the module.
+[Optimizer](./torchopt/optim/optimizer.py) module contains common interface for an optimization algortihm implementations. Module also contains implementation of Genetic algorithm (GA) meta-heuristic. Two implementations of GA are provided: 1. to solve integer optimization problems and 2. to solve binary optimization problems. Detailed description of GA implementations can be found in the module.
 
 ### Pruning
 
@@ -36,7 +36,7 @@ pip install torch-optimizer
 
 ## Usage
 
-One can train their own PyTorch model on arbitrary dataset and then use the library functionalities to perform structured pruning. Here is the simple example:
+One can train their own PyTorch model on arbitrary dataset and then use the library functionalities to perform structured pruning. Here is a simple example:
 
 ```python
 import torch
