@@ -12,7 +12,7 @@ setuptools.setup(
     version="0.0.2",
     author="Rastislav Papso",
     author_email="rastislav.papso@gmail.com",
-    description="PyTorch models optimization using neural network pruning",
+    description="PyTorch models optimization by neural network pruning",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/r-papso/torch-optimizer",

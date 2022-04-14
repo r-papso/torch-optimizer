@@ -129,5 +129,6 @@ dmypy.json
 .pyre/
 
 # Custom items
+data/
 notebooks/
 .vscode/
