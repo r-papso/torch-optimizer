@@ -8,7 +8,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 
 setuptools.setup(
-    name="torch-optimizer",
+    name="torch-opt",
     version="0.0.1",
     author="Rastislav Papso",
     author_email="rastislav.papso@gmail.com",
@@ -29,7 +29,7 @@ setuptools.setup(
         "thop>=0.0.31",
         "torch>=1.10.0",
         "torch-pruning>=0.2.7",
-        "torchvision>=0.11.1"
+        "torchvision>=0.11.1",
     ],
     python_requires=">=3.9",
 )
