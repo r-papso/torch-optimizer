@@ -8,8 +8,8 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 
 setuptools.setup(
-    name="torch-opt",
-    version="0.0.1",
+    name="torch-optim",
+    version="0.0.2",
     author="Rastislav Papso",
     author_email="rastislav.papso@gmail.com",
     description="PyTorch models optimization using neural network pruning",
