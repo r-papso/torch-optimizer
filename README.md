@@ -28,7 +28,7 @@ Library provides several functionalities to facilitate solving given optimizatio
 
 ## Installation
 
-Use the package manager [pip](https://pip.pypa.io/en/stable/) to install pynet.
+Use the package manager [pip](https://pip.pypa.io/en/stable/) to install Torch optimizer.
 
 ```bash
 pip install torch-optim
