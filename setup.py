@@ -9,7 +9,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="torch-optim",
-    version="0.0.2",
+    version="0.0.3",
     author="Rastislav Papso",
     author_email="rastislav.papso@gmail.com",
     description="PyTorch models optimization by neural network pruning",
@@ -32,4 +32,6 @@ setuptools.setup(
         "torchvision>=0.11.1",
     ],
     python_requires=">=3.9",
+    package_data={"torchopt.model": ["*.pth"]},
+    include_package_data=True,
 )
